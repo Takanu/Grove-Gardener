@@ -63,7 +63,7 @@ class GARDENER_OT_Replace_Twigs(Operator):
             print("Current edge verts - ", e_step)
             print(current_vertex)
             new_sel = [e_step.index]
-            shared_linked_face = True
+            shared_face = True
             
             i = 0
             while i <= 63:
@@ -81,14 +81,17 @@ class GARDENER_OT_Replace_Twigs(Operator):
                             print("Next vertex : ", current_vertex)
                             
                             if target_edge.link_faces[0].index != ele.link_faces[0].index:
-                                shared_linked_face = False
+                                shared_face = False
                             
                             break
                 
                 if loop.edge.other_vert(loop.vert).index == current_vertex.index:
                     break
     
-            i += 1
+                i += 1
+
+            return new_sel, shared_face
+
 
         def bmesh_get_connected(vert):
     
@@ -116,12 +119,13 @@ class GARDENER_OT_Replace_Twigs(Operator):
             return vert_stack
         
             
-            return new_sel, shared_linked_face
+            
         
 
         # boop initial setup
         # ///////////////////////
         t0 = time.perf_counter()
+        bpy.ops.object.mode_set(mode='EDIT')
 
         obj = context.edit_object
         me = obj.data
@@ -162,7 +166,7 @@ class GARDENER_OT_Replace_Twigs(Operator):
         # Get the perimeter lengths of all boundary loops
         # ///////////////////////
         kept_branch_loops = []
-        rejected_branch_loops []
+        rejected_branch_loops = []
         for loop in boundary_loops:
             length = 0.0
             for i in loop:
@@ -172,6 +176,9 @@ class GARDENER_OT_Replace_Twigs(Operator):
                 kept_branch_loops.append(loop.copy())
             else:
                 rejected_branch_loops.append(loop.copy())
+        
+
+        bmesh.ops.delete(bm, geom=vert_list, context=1)
         
         # Delete EVERYTHING WE DONT NEED
         # ///////////////////////
@@ -187,6 +194,8 @@ class GARDENER_OT_Replace_Twigs(Operator):
         print("Boundary loops found: ",len(boundary_loops))  # Delete me later
         print("Emitter loops found: ",len(emitter_loops))  # Delete me later
         print("---END---")
+
+        bpy.ops.object.mode_set(mode='OBJECT')
 
 
         return {'FINISHED'}
