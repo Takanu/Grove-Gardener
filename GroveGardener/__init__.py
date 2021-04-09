@@ -14,7 +14,7 @@
 bl_info = {
     "name" : "Grove Gardener",
     "author" : "Takanu Kyriako",
-    "description" : "Tools for trimming down trees made from The Grove into game engine-compatible trees.",
+    "description" : "Trim down trees made from The Grove into game engine-compatible trees.",
     "blender" : (2, 92, 0),
     "version" : (1, 0, 0),
     "location" : "",
@@ -22,7 +22,9 @@ bl_info = {
     "category" : "Generic"
 }
 
-from bpy.utils import register_class
+
+import bpy, bmesh, time
+from bpy.utils import register_class, unregister_class
 from bpy.types import Menu
 from bpy.types import Operator
 from bpy.props import IntProperty, FloatProperty
@@ -31,9 +33,9 @@ class GardenerPanel(bpy.types.Panel):
     """Creates a Panel in the Object properties window"""
 
     bl_label = "Gardener"
-    bl_idname = "VIEW3D_PT_Grid_Options"
+    bl_idname = "VIEW3D_PT_Grove_Gardener"
     bl_space_type = 'VIEW_3D'
-    bl_category = "The Grove 10"
+    bl_category = "Grove 10"
     bl_region_type = 'UI'
     
 
@@ -60,8 +62,8 @@ class GARDENER_OT_Replace_Twigs(Operator):
             loop = e_step.link_loops[0]#.link_loop_next
             current_vertex = loop.vert  # Previous Current Vert (loop's vert)
             
-            print("Current edge verts - ", e_step)
-            print(current_vertex)
+            # print("Current edge verts - ", e_step)
+            # print(current_vertex)
             new_sel = [e_step.index]
             shared_face = True
             
@@ -73,12 +75,12 @@ class GARDENER_OT_Replace_Twigs(Operator):
                     if ele.is_boundary == True:
                         if ele.index != e_step.index:
                         
-                            print("Candidate found : ", ele)
+                            # print("Candidate found : ", ele)
                             new_sel.append(ele.index)
                             
                             e_step = ele
                             current_vertex = ele.other_vert(current_vertex)
-                            print("Next vertex : ", current_vertex)
+                            # print("Next vertex : ", current_vertex)
                             
                             if target_edge.link_faces[0].index != ele.link_faces[0].index:
                                 shared_face = False
@@ -93,10 +95,10 @@ class GARDENER_OT_Replace_Twigs(Operator):
             return new_sel, shared_face
 
 
-        def bmesh_get_connected(vert):
+        def bmesh_get_connected(vert, hidden_verts):
     
             # The stack of vertex indexes we will end up with for our mesh element.
-            vert_stack = [vert.index]
+            vert_stack = [vert]
             last_search = [vert]
             
             while len(last_search) != 0:
@@ -109,17 +111,21 @@ class GARDENER_OT_Replace_Twigs(Operator):
                         
                         vert_c = edge.other_vert(search_vert)
 
-                        if vert_c.index not in vert_stack:
+                        if vert_c not in vert_stack:
 
-                            vert_c.select = True
-                            vert_stack.append(vert_c.index)
+                            # vert_c.select = True
+                            vert_stack.append(vert_c)
                             last_search.append(vert_c)
-                            
+            
+            # Remove hidden verts from the list
+            for hidden_v in hidden_verts:
+                try: 
+                    vert_stack.remove(hidden_v)
+                except ValueError:
+                    continue        
 
             return vert_stack
         
-            
-            
         
 
         # boop initial setup
@@ -137,7 +143,8 @@ class GARDENER_OT_Replace_Twigs(Operator):
         for e in bm.edges:
             if e.is_boundary:
                 boundary_edge_stack.append(e.index)
-
+        
+        bm.edges.ensure_lookup_table()
 
         # Fetch boundary and emitter loops
         # ///////////////////////
@@ -145,7 +152,7 @@ class GARDENER_OT_Replace_Twigs(Operator):
         emitter_loops = []
 
         while len(boundary_edge_stack) > 0:
-            print("next edge")
+            # print("next edge")
             target_edge = boundary_edge_stack[0]
             loop_results = BM_get_edge_loop(bm.edges[target_edge])
             loop = loop_results[0]
@@ -165,37 +172,86 @@ class GARDENER_OT_Replace_Twigs(Operator):
 
         # Get the perimeter lengths of all boundary loops
         # ///////////////////////
-        kept_branch_loops = []
+        t1 = time.perf_counter()
         rejected_branch_loops = []
+
         for loop in boundary_loops:
             length = 0.0
             for i in loop:
                 length += bm.edges[i].calc_length()
             
-            if length > 0.05:
-                kept_branch_loops.append(loop.copy())
-            else:
-                rejected_branch_loops.append(loop.copy())
-        
+            if length < 0.05:
+                vertex_data = []
+            
+                for edge_index in loop:
+                    edge = bm.edges[edge_index]
+                    
+                    for vert in edge.verts:
+                        if vert not in vertex_data:
+                            vertex_data.append(vert)
 
-        bmesh.ops.delete(bm, geom=vert_list, context=1)
+                rejected_branch_loops.append(vertex_data)
         
-        # Delete EVERYTHING WE DONT NEED
+        
+        rejected_emitter_loops = []
+
+        for loop in emitter_loops:
+            vertex_data = []
+
+            for edge_index in loop:
+                edge = bm.edges[edge_index]
+                
+                for vert in edge.verts:
+                    if vert not in vertex_data:
+                        vert.select = True
+                        vertex_data.append(vert)
+
+            rejected_emitter_loops.append(vertex_data)
+        
+        boundary_loops.clear()
+        emitter_loops.clear()
+            
+
+        # For every rejected branch, cap the boundary, flip the
+        # normal and get everything but the cap
         # ///////////////////////
+        t2 = time.perf_counter()
+        for reject in rejected_branch_loops:
+            
+            try:
+                new_mesh_data = bmesh.ops.contextual_create(bm, geom=reject, mat_nr=0, use_smooth=False)
+            except TypeError:
+                continue
 
+            new_face = new_mesh_data["faces"][0]
+            bmesh.ops.reverse_faces(bm, faces=[new_face], flip_multires=False)
 
+            # Then delete it!
+            branch_geom = bmesh_get_connected(reject[0], reject)
+            bmesh.ops.delete(bm, geom=branch_geom, context='VERTS')
+        
+        for reject in rejected_emitter_loops:
+            bmesh.ops.delete(bm, geom=reject, context='VERTS')
+        
+        t3 = time.perf_counter()
 
-        # This is used to ensure the BMesh state is correct?  Need to investigate...
-        bm.select_flush_mode()   
+        bmesh.update_edit_mesh(me, True)
+        #bm.select_flush_mode()   
         me.update()
+        bm.free()
 
-        t1 = time.perf_counter()
-        print("Runtime: %.15f sec" % (t1 - t0))  # Delete me later
-        print("Boundary loops found: ",len(boundary_loops))  # Delete me later
-        print("Emitter loops found: ",len(emitter_loops))  # Delete me later
+        #bpy.ops.object.mode_set(mode='OBJECT')
+        
+        collect_time = t1 - t0
+        vert_set_time = t2 - t1
+        deletion_time = t3 - t2
+        print("Collection Time: %.15f sec" % (collect_time))  
+        print("Vertex Gatheting Time: %.15f sec" % (vert_set_time))  
+        print("Deletion Time: %.15f sec" % (deletion_time))  
+
         print("---END---")
 
-        bpy.ops.object.mode_set(mode='OBJECT')
+        
 
 
         return {'FINISHED'}
@@ -215,7 +271,6 @@ def register():
         min=0.0,
         max=30.0,
         default=1.0,
-        update=WHITEBOX_Update_GridOpacity,
     )
     
 
