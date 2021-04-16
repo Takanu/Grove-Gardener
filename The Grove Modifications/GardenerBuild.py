@@ -1,17 +1,15 @@
 
 # This adds additional functions involved in replicating and transforming frond meshes.
-#
-# INSTALLATION: Add this file inside The Grove plugin.
 
 import bpy, bmesh, time
 from mathutils import Matrix, Vector, Quaternion
 from bisect import bisect_left
 
 # This code is responsible for drawing branches with an alternate method.
-def build_gardener_branch(nodes, origin, scale_to_twig, tan, axi,
+def build_gardener_branch(nodes, fronds, origin, scale_to_twig, tan, axi,
                           v, verts_append, faces_append, uvs_extend):
     
-    frond_mesh = load_twig_geom("Cube")
+    frond_mesh = fronds[0][0]
     
     # Sort branch nodes by distance.
     i = 0
@@ -84,38 +82,67 @@ def build_gardener_branch(nodes, origin, scale_to_twig, tan, axi,
     
 
 # PLACEHOLDER: Loads the requested type of twig geometry for use in building.
-def load_twig_geom(object_name):
+def load_frond_set(collection):
 
     """
-    Takes a set of vertices and returns a list of indexes sorted on their X value. 
-    lowest is first.  Not sure if I need this anymore.    
+    Loads a mesh-based object and returns it's individual components (minus normals).
+    TODO: Add length and width data so frond substitions can be smarter.
     """
+
+    frond_data = []
+    material_layers = []
+    id_index = 0
+
+    for obj in collection.all_objects:
+        if obj.type == 'MESH':
+
+            # Obtain the flat mesh data.
+            obj = bpy.data.objects[obj.name]
+            me = obj.to_mesh(preserve_all_data_layers=False, depsgraph=None)
+            uv_layer = me.uv_layers.active.data
+
+            # Turn it into from_pydata-compatible datasets.
+            vertices = []
+            faces = []
+            uvs = []
+            mat_ids = []
+
+            for vertex in me.vertices:
+                vertices.append(vertex.co.copy())
+
+            for poly in me.polygons:
+                f = []
+                u = []
+
+                for loop_index in poly.loop_indices:
+                    f.append(me.loops[loop_index].vertex_index)
+                    u.append(uv_layer[loop_index].uv.copy())
+                
+                faces.append(f)
+                uvs.append(u)
+                mat_ids.append(poly.material_index + id_index)
+
+            for i, mat in enumerate(me.materials):
+
+                if mat.name in material_layers:
+                    new_id = material_layers.index(mat.name)
+
+                    # Collapse all indexes higher than it, replace matches
+                    for idx, item in enumerate(mat_ids):
+                        if item == i:
+                            mat_ids[idx] = new_id
+                        elif item > i:
+                            mat_ids[idx] = item - 1
+
+                else:
+                    material_layers.append(mat.name)
+            
+            frond_data.append([vertices, faces, uvs, mat_ids])
+
+            id_index += len(mat_names)
     
-    # Obtain the flat mesh data.
-    obj = bpy.data.objects[object_name]
-    me = obj.to_mesh(preserve_all_data_layers=False, depsgraph=None)
-    uv_layer = me.uv_layers.active.data
 
-    # Turn it into from_pydata-compatible datasets.
-    vertices = []
-    faces = []
-    uvs = []
-
-    for vertex in me.vertices:
-        vertices.append(vertex.co)
-
-    for poly in me.polygons:
-        f = []
-        u = []
-
-        for loop_index in poly.loop_indices:
-            f.append(me.loops[loop_index].vertex_index)
-            u.append(uv_layer[loop_index].uv)
-        
-        faces.append(f)
-        uvs.append(u)
-
-    return [vertices, faces, uvs]
+    return [frond_data, material_layers]
 
 
 

@@ -27,7 +27,7 @@ import bpy, bmesh, time
 from bpy.utils import register_class, unregister_class
 from bpy.types import Menu
 from bpy.types import Operator
-from bpy.props import IntProperty, FloatProperty, BoolProperty
+from bpy.props import IntProperty, FloatProperty, BoolProperty, PointerProperty
 
 class GardenerPanel(bpy.types.Panel):
     """Creates a Panel in the Object properties window"""
@@ -45,8 +45,8 @@ class GardenerPanel(bpy.types.Panel):
         scene = bpy.context.scene
 
         row = layout.column(align=False)
-        #row.operator("scene.gardener_replacetwigs")
         row.prop(scene, "gardener_use_fronds")
+        row.prop(scene, "gardener_frond_collection")
         row.prop(scene, "gardener_thickness_preserve")
         row.prop(scene, "gardener_reduce_edgeloops")
         row.prop(scene, "gardener_edgeloop_reduce_factor")
@@ -66,6 +66,12 @@ def register():
         name="Use Fronds",
         description="If true, small branches will be replaced with fronds that match their curvature and shape.",
         default=False,
+    )
+
+    bpy.types.Scene.gardener_frond_collection = PointerProperty(
+        type=bpy.types.Collection,
+        name="Frond Collection",
+        description="The collection of objects that will be used as Fronds.",
     )
     
     bpy.types.Scene.gardener_thickness_preserve = FloatProperty(
@@ -94,6 +100,7 @@ def register():
 def unregister():
 
     del bpy.types.Scene.gardener_use_fronds
+    del bpy.types.Scene.gardener_frond_collection
     del bpy.types.Scene.gardener_thickness_preserve
     del bpy.types.Scene.gardener_reduce_edgeloops
     del bpy.types.Scene.gardener_edgeloop_reduce_factor

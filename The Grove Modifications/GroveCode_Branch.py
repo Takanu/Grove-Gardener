@@ -1,8 +1,8 @@
 
 
 
-
 # INSTALLATION : Add this to the top of the Branch file (around line 21)
+
 from .GardenerBuild import build_gardener_branch
 
 
@@ -21,7 +21,7 @@ def build_branches_mesh(self, lateral_on_apical,
                         profile_resolution, profile_resolution_reduction, twist, u_repeat, texture_aspect_ratio, scale_to_twig,
                         root_distribution, root_shape, root_scale, root_bump, base_weight,
                         parent_previous_node, parent_node, parent_next_node, v, verts, faces, uvs, shape,
-                        layers, branch_index, branch_index_parent,
+                        layers, fronds, frond_materials, branch_index, branch_index_parent,
                         origin, circles,
                         lateral_twig_age_limit, dead_twig_wither, branch_angle, branching, plagiotropism_buds, add_planar, 
                         wind_force, tree_age,
@@ -420,10 +420,9 @@ def build_branches_mesh(self, lateral_on_apical,
         radius = nodes[0].radius
 
         # Build the frond
-        results = build_gardener_branch(nodes, origin, scale_to_twig, tan, axi,
+        results = build_gardener_branch(nodes, fronds, frond_materials, 
+                                        origin, scale_to_twig, tan, axi,
                                         v, verts_append, faces_append, uvs_extend)
-
-        print(results)
         
         # Populate data layers
         v += results
@@ -456,6 +455,7 @@ def build_branches_mesh(self, lateral_on_apical,
 
 
             # TK NOTE - First attempt at reducing loop count by skipping out of nodes early.
+            # TODO: This breaks UVs, wind and recording and it isnt elegant in any way
             if gardener_reduce_el == True:
 
                 if j > 1 and j != (len(nodes) - 1):
@@ -537,6 +537,9 @@ def build_branches_mesh(self, lateral_on_apical,
             # Use pre-calculated circles for a speed-up.
             circle = circles[cur_res]
 
+            # Gardener variable to keep faces indexed.
+            face_number = 0
+
             if build_skeleton:
                 cur_res = 1
 
@@ -571,6 +574,7 @@ def build_branches_mesh(self, lateral_on_apical,
                                     offset - cur_res,
                                     offset,
                                     offset - 1))
+                        face_number += 1
 
                         if prev_res == cur_res:
                             uvs_extend([(a, previous_y),
@@ -601,6 +605,7 @@ def build_branches_mesh(self, lateral_on_apical,
                                 offset - cur_res,
                                 offset,
                                 offset + cur_res - 1))
+                    face_number += 1
 
                     uvs_extend([(a - move_back_x, previous_y),
                                 (b - move_back_x, previous_y),
@@ -615,6 +620,7 @@ def build_branches_mesh(self, lateral_on_apical,
                                 offset - cur_res,
                                 offset,
                                 offset + cur_res - 1))
+                    face_number += 1
 
                     uvs_extend([(prev_a + c - move_back_x, previous_y),
                                 (b + c - move_back_x, previous_y),
@@ -624,6 +630,7 @@ def build_branches_mesh(self, lateral_on_apical,
                     faces_append((offset - 1,
                                 offset - cur_res - 1,
                                 offset + cur_res - 1))
+                    face_number += 1
 
                     uvs_extend([(prev_a - move_back_x, previous_y),
                                 (b - move_back_x, previous_y),
@@ -645,6 +652,7 @@ def build_branches_mesh(self, lateral_on_apical,
                                 faces_append((v - 2,
                                             v - 2 - i,
                                             v - 1))
+                                face_number += 1
 
                                 uvs_extend([(0.5 * circle[0].x + 0.5, 0.5 * circle[0].y + 0.5),
                                             (0.5 * circle[i].x + 0.5, 0.5 * circle[i].y + 0.5),
@@ -653,20 +661,22 @@ def build_branches_mesh(self, lateral_on_apical,
                                 faces_append((v - 3 - i,
                                             v - 2 - i,
                                             v - 1))
+                                face_number += 1
 
                                 uvs_extend([(0.5 * circle[i + 1].x + 0.5, 0.5 * circle[i + 1].y + 0.5),
                                             (0.5 * circle[i].x + 0.5, 0.5 * circle[i].y + 0.5),
                                             (0.5, 0.5)])
+            
+            # Moved numbers here as Gardener needs these!
+            if j == last_node_index:
+                number = cur_res + 1
+            else:
+                number = cur_res
+
+            if cur_res == 2:
+                number = cur_res  # LOD
 
             if do_layers:
-                if j == last_node_index:
-                    number = cur_res + 1
-                else:
-                    number = cur_res
-
-                if cur_res == 2:
-                    number = cur_res  # LOD
-                
                 layers_shade_extend([self.shade] * number)
                 layers_thickness_extend([n.thickness] * number)
                 layers_age_extend([n.age / tree_age] * number)
@@ -684,6 +694,12 @@ def build_branches_mesh(self, lateral_on_apical,
                 layers_lateral_extend([0.0] * number)
                 layers_branch_index_extend([branch_index] * number)
                 layers_branch_index_parent_extend([branch_index_parent] * number)
+            
+            # Material indexes for frond meshes are counted differently.
+            if gardener_use_fronds:
+                for id_list in frond_materials.values():
+                    id_list.extend([0.0] * face_number)
+
 
             prev_res = cur_res
     
@@ -719,8 +735,10 @@ def build_branches_mesh(self, lateral_on_apical,
             uvs_extend([(0.5, 0.5),
                         (0.5, 0.5),
                         (0.5, 0.5)])
+
+            number = 3
+
             if do_layers:
-                number = 3
                 
                 # Upward twigs, if pointing upward more than a set angle, use an upward twig instead of a regular apical twig.
                 if self.dead or last_node.dead:
@@ -753,6 +771,12 @@ def build_branches_mesh(self, lateral_on_apical,
                 layers_pitch_extend([pitch] * number)
                 layers_branch_index_extend([branch_index] * number)
                 layers_branch_index_parent_extend([branch_index_parent] * number)
+            
+
+            if gardener_use_fronds:
+                for id_list in frond_materials.values():
+                    id_list.extend([0.0])
+
     
     # Add lateral twigs.
     last_node_index = len(self.nodes) - 1
@@ -807,9 +831,10 @@ def build_branches_mesh(self, lateral_on_apical,
                     uvs_extend([(0.5, 0.5),
                                 (0.5, 0.5),
                                 (0.5, 0.5)])
+                    
+                    number = 3
 
                     if do_layers:
-                        number = 3
                         layers_shade_extend([self.shade] * number)
                         layers_thickness_extend([n.thickness] * number)
                         layers_age_extend([n.age / tree_age] * number)
@@ -835,6 +860,10 @@ def build_branches_mesh(self, lateral_on_apical,
                         
                         layers_branch_index_extend([branch_index] * number)
                         layers_branch_index_parent_extend([branch_index_parent] * number)
+                    
+                    if gardener_use_fronds:
+                        for id_list in frond_materials.values():
+                            id_list.extend([0.0])
     
     # TK NOTE - Loops through to any sub-branches that may be in this node.
 
@@ -876,7 +905,8 @@ def build_branches_mesh(self, lateral_on_apical,
                     root_distribution, root_shape, root_scale, root_bump,
                     base_weight,
                     previous_node, current_node, next_node, v,
-                    verts, faces, uvs, shape, layers, next_branch_index, branch_index,
+                    verts, faces, uvs, shape, layers, fronds, frond_materials, 
+                    next_branch_index, branch_index,
                     origin, circles,
                     lateral_twig_age_limit, dead_twig_wither, branch_angle, branching, plagiotropism_buds, add_planar, 
                     wind_force, 

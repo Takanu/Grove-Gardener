@@ -1,4 +1,9 @@
 
+
+# INSTALLATION : Add this to the top of the Branch file (around line 27)
+
+from .GardenerBuild import load_frond_set
+
 # This function is a modified version of a definition inside the OperatorBuild file.
 #
 # INSTALLATION : Replace the original definition inside OperatorBuild with this 
@@ -29,10 +34,18 @@ def build_branches_mesh(tree, properties, context):
 
     properties.texture_aspect_ratio = texture_aspect_ratio
 
+    # Load frond data if we're replacing branches.
+    # Also contains an indexed list of all materials used.
+    frond_data = load_frond_set(bpy.context.scene.gardener_frond_collection)
+
     vertices = []
     faces = []
     uvs = []
     shape = []
+
+    frond_materials = {}
+    for mat_name in frond_data[1]:
+        frond_materials[mat_name] = []
 
     simulation_data = {'layer_shade': [],
                        'layer_thickness': [],
@@ -58,7 +71,8 @@ def build_branches_mesh(tree, properties, context):
                              properties.root_scale, properties.root_bump,
                              tree.nodes[0].weight,
                              None, None, None, 0,
-                             vertices, faces, uvs, shape, simulation_data, 0, 0,
+                             vertices, faces, uvs, shape, simulation_data, frond_data, frond_materials, 
+                             0, 0,
                              tree.nodes[0].pos, pre_compute_circles(properties.profile_resolution),
                              properties.lateral_twig_age_limit, properties.dead_twig_wither,
                              properties.branch_angle, int(properties.branching),
@@ -171,6 +185,17 @@ def build_branches_mesh(tree, properties, context):
                 index = me.materials.find("TheGroveDeadBranches")
                 material_indices = [material_indices[i] + (index * int(data[face[0]]))
                                     for i, face in enumerate(faces)]
+
+    # Assign custom frond materials
+    custom_i = 0
+    for mat_name, mat_data in frond_materials.items():
+        me.materials.append(bpy.data.materials[mat_name])
+        index = me.materials.find(mat_name)
+
+        for i, face in enumerate(faces):
+            result = index * int(mat_data[i])
+            material_indices[i] = material_indices[i] + result
+    
     
     # Needle layer WIP. TODO: Finalize!
     if getattr(properties, 'do_layer_young'):
