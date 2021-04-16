@@ -6,15 +6,20 @@ The Grove is a wonderful tool that creates detailed and very convincing tree mod
 
 What The Grove actually needs to be appropriate for game development is the ability to automatically delete and replace branches with twig planes so you still get detailed tree shapes, and thats what this little addon seeks to do.
 
-## The Tools
+## Important Notice
+This is **not a standalone addon** as it would require copying and hosting all of The Grove code here and the creator of the plugin deserves support for their awesome work, this repository only contains code modifications for The Grove and the instructions for how to add them to your own copy of The Grove.
+
+The Grove is a one-time purchase and you'll get all future updates for free, making it a great investment - https://www.thegrove3d.com/.
+
+---
+
+# The Tools
 
 ### Replace Branches (Work in progress)
-This tool simply replaces branches in a tree that are less than a specified thickness to an emitter that you can use to distribute your own branches, solving the big issue with The Grove in game development as it stands.
+This tool adds a new twig type - frond.  The frond mesh set will automatically replace branches that are lower than a certain thickness and it will still bend and conform to the path the original branch would have taken.
 
-This works for tree types where smaller branches conform to a similar angle and shape as the branches it is grown from, but this wont work on tree types like the Willow.
-
-In the future id like to also add additional features so that instead of using emitters, it uses planes that conform to the specific curve and shape of the branches it replaces so it can be used with any tree type.  Additionally id like to hook that into the current particle system so you can automatically substitute dead branches with a dead branch plane set.
-
+### Simplify Edge Loops (Work in progress)
+The Grove adds a lot of edge loops that trees don't always need and this small tool automatically removes some of them to reduce the polygon count.
 
 ### Average Normals (to be added)
 Using the available tree mesh data, some kind of tool that makes the process of creating an averaged normal mesh to project onto tree planes an easy process.
