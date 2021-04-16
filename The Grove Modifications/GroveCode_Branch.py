@@ -1,15 +1,24 @@
 
-# Add this to the top of the Branch file.
 
-# Gardener requested imports
+
+
+# INSTALLATION : Add this to the top of the Branch file (around line 21)
 from .GardenerBuild import build_gardener_branch
 
-# This is a modified version of a function inside the Branch file.
-# Replace the original with this and ensure the tabbing is correct.
+
+# -------------------------------------------------------
+
+# This function is a modified version of a definition inside the Branch file.
+#
+# INSTALLATION : Replace the original definition inside Branch with this 
+# and ensure the tabbing is correct.
+#
+# This function is located at line at around line 1440 (depending on where you add the import
+# statement above)
 
 
 def build_branches_mesh(self, lateral_on_apical,
-                        profile_resolution, profile_resolution_reduction, twist, u_repeat, texture_aspect_ratio,
+                        profile_resolution, profile_resolution_reduction, twist, u_repeat, texture_aspect_ratio, scale_to_twig,
                         root_distribution, root_shape, root_scale, root_bump, base_weight,
                         parent_previous_node, parent_node, parent_next_node, v, verts, faces, uvs, shape,
                         layers, branch_index, branch_index_parent,
@@ -389,7 +398,7 @@ def build_branches_mesh(self, lateral_on_apical,
     thickness_intervention_value = bpy.context.scene.gardener_thickness_preserve
     gardener_use_fronds = bpy.context.scene.gardener_use_fronds
 
-    disable_twigs = False
+    disable_twigs = True
 
     gardener_intervention = False
     if gardener_use_fronds is True:
@@ -408,11 +417,10 @@ def build_branches_mesh(self, lateral_on_apical,
         n = nodes[-1]
         pitch = 1.0 - (vector_z.angle(tan[j], 0.0) / pi)  # Used for pitch data layer.
 
-        pos_offset = nodes[0].pos - origin
         radius = nodes[0].radius
 
         # Build the frond
-        results = build_gardener_branch(nodes, pos_offset, tan, axi,
+        results = build_gardener_branch(nodes, origin, scale_to_twig, tan, axi,
                                         v, verts_append, faces_append, uvs_extend)
 
         print(results)
@@ -864,7 +872,7 @@ def build_branches_mesh(self, lateral_on_apical,
                 v, next_branch_index = sub_branch.build_branches_mesh(
                     lateral_on_apical,
                     profile_resolution, profile_resolution_reduction,
-                    twist, u_repeat, texture_aspect_ratio,
+                    twist, u_repeat, texture_aspect_ratio, scale_to_twig,
                     root_distribution, root_shape, root_scale, root_bump,
                     base_weight,
                     previous_node, current_node, next_node, v,

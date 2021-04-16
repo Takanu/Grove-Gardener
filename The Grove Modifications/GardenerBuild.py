@@ -1,12 +1,14 @@
 
 # This adds additional functions involved in replicating and transforming frond meshes.
+#
+# INSTALLATION: Add this file inside The Grove plugin.
 
 import bpy, bmesh, time
 from mathutils import Matrix, Vector, Quaternion
 from bisect import bisect_left
 
 # This code is responsible for drawing branches with an alternate method.
-def build_gardener_branch(nodes, origin, tan, axi,
+def build_gardener_branch(nodes, origin, scale_to_twig, tan, axi,
                           v, verts_append, faces_append, uvs_extend):
     
     frond_mesh = load_twig_geom("Cube")
@@ -24,7 +26,6 @@ def build_gardener_branch(nodes, origin, tan, axi,
 
     for co in frond_mesh[0]:
         border_dist = take_boundaries(node_dist, co.x)
-        print(border_dist)
         i_0 = node_dist.index(border_dist[0])
         i_1 = node_dist.index(border_dist[1])
 
@@ -50,7 +51,10 @@ def build_gardener_branch(nodes, origin, tan, axi,
         mat[1][0:3] = co_axi
         mat[2][0:3] = co_tan.cross(co_axi)
 
+        mat_scl = Matrix.Scale((1/ scale_to_twig), 4)
+
         co_tr = co @ mat
+        co_tr = co_tr @ mat_scl
         new_co = co_tr + (co_pos - origin)
         verts_append(new_co)
 
@@ -70,9 +74,10 @@ def build_gardener_branch(nodes, origin, tan, axi,
         new_face = []
         for i in face:
             new_face.append(i + v)
-
         faces_append(new_face)
-        uvs_extend([(1, 1), (1,1), (1,1), (1,1)])
+
+    for uv in frond_mesh[2]:
+        uvs_extend(uv)
 
     return len(frond_mesh[0])
 
@@ -88,19 +93,29 @@ def load_twig_geom(object_name):
     
     # Obtain the flat mesh data.
     obj = bpy.data.objects[object_name]
-    mesh = obj.to_mesh(preserve_all_data_layers=False, depsgraph=None)
+    me = obj.to_mesh(preserve_all_data_layers=False, depsgraph=None)
+    uv_layer = me.uv_layers.active.data
 
     # Turn it into from_pydata-compatible datasets.
     vertices = []
     faces = []
+    uvs = []
 
-    for vertex in mesh.vertices:
+    for vertex in me.vertices:
         vertices.append(vertex.co)
-    
-    for face in mesh.polygons:
-        faces.append(face.vertices[:])
 
-    return [vertices, faces]
+    for poly in me.polygons:
+        f = []
+        u = []
+
+        for loop_index in poly.loop_indices:
+            f.append(me.loops[loop_index].vertex_index)
+            u.append(uv_layer[loop_index].uv)
+        
+        faces.append(f)
+        uvs.append(u)
+
+    return [vertices, faces, uvs]
 
 
 
