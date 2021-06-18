@@ -10,7 +10,7 @@ def build_gardener_branch(nodes, fronds, frond_materials,
                           origin, scale_to_twig, pos, tan, axi,
                           v, verts_append, faces_append, uvs_extend):
     
-    frond_mesh = fronds[0][0]
+    
 
     #print("/n")
     #print("*** NEW FROND! ***")
@@ -27,6 +27,7 @@ def build_gardener_branch(nodes, fronds, frond_materials,
         node_dist.append(d)
         i += 1
     
+    # Build transform points
     i = 0
     transform_points = []
     while i < (len(nodes)):
@@ -48,11 +49,22 @@ def build_gardener_branch(nodes, fronds, frond_materials,
 
         i += 1
     
-    #print("Node Distances : ", node_dist)
-    #print("/n")
+    # Pick the right frond mesh
+    
+    frond_target = None
+    target_diff = 0.0
+    for j, frond in enumerate(fronds[0]):
+        print(frond[4])
+        
+        diff = abs(d - frond[4].x)
+        print(diff)
+        if j == 0 or diff < target_diff:
+            frond_target = frond
+            target_diff = diff
 
 
-    for co in frond_mesh[0]:
+
+    for co in frond_target[0]:
         border_dist = take_boundaries(node_dist, co.x)
         i_0 = node_dist.index(border_dist[0])
         i_1 = node_dist.index(border_dist[1])
@@ -85,20 +97,20 @@ def build_gardener_branch(nodes, fronds, frond_materials,
         verts_append(new_co)
 
 
-    for face in frond_mesh[1]:
+    for face in frond_target[1]:
         new_face = []
         for i in face:
             new_face.append(i + v)
         faces_append(new_face)
 
-    for uv in frond_mesh[2]:
+    for uv in frond_target[2]:
         uvs_extend(uv)
 
     # Copies the same system for data layers as simulation_items to keep things uniform.
     # ...just in a clunkier way Q _ Q
     i = 0
     
-    for mat_id in frond_mesh[3]:
+    for mat_id in frond_target[3]:
         for id_list in frond_materials.values():
             if i == mat_id:
                 id_list.append(1.0)
@@ -107,7 +119,7 @@ def build_gardener_branch(nodes, fronds, frond_materials,
             i += 1
         i = 0
 
-    return len(frond_mesh[0])
+    return len(frond_target[0])
 
     
 
@@ -117,6 +129,7 @@ def load_frond_set(collection, scale_to_twig):
     """
     Loads a mesh-based object and returns it's individual components (minus normals).
     TODO: Add length and width data so frond substitions can be smarter.
+    TODO: Make this a dictionary/tuple thing, otherwise data access will get bad fast.
     """
 
     frond_data = []
@@ -137,6 +150,12 @@ def load_frond_set(collection, scale_to_twig):
             uvs = []
             mat_ids = []
             mat_names = []
+
+            # Get bounds for the object
+            bounds = get_bounds(obj)
+            bound_dist = Vector((bounds.x.distance, bounds.y.distance, bounds.z.distance))
+            bound_dist = bound_dist / scale_to_twig
+            print(" B O U N D A R Y - ", bound_dist)
 
             mat_scl = Matrix.Scale((1/ scale_to_twig), 4)
 
@@ -174,13 +193,39 @@ def load_frond_set(collection, scale_to_twig):
             
             print("Frond Mat ID Count:", len(mat_ids))
 
-            frond_data.append([vertices, faces, uvs, mat_ids])
+            frond_data.append([vertices, faces, uvs, mat_ids, bound_dist])
 
             id_index += len(mat_names)
     
 
     return [frond_data, material_layers]
 
+def get_bounds(obj):
+    """
+    Returns useful information from the bounds of an object.
+    """
+
+    local_coords = obj.bound_box[:]
+    om = obj.matrix_world
+
+    coords = [p[:] for p in local_coords]
+
+    rotated = zip(*coords[::-1])
+
+    push_axis = []
+    for (axis, _list) in zip('xyz', rotated):
+        info = lambda: None
+        info.max = max(_list)
+        info.min = min(_list)
+        info.distance = info.max - info.min
+        push_axis.append(info)
+
+    import collections
+
+    originals = dict(zip(['x', 'y', 'z'], push_axis))
+
+    o_details = collections.namedtuple('object_details', 'x y z')
+    return o_details(**originals)
 
 
 def sort_vertices_on_x(verts):
