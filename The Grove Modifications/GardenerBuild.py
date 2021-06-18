@@ -50,7 +50,6 @@ def build_gardener_branch(nodes, fronds, frond_materials,
         i += 1
     
     # Pick the right frond mesh
-    
     frond_target = None
     target_diff = 0.0
     for j, frond in enumerate(fronds[0]):
@@ -62,13 +61,40 @@ def build_gardener_branch(nodes, fronds, frond_materials,
             frond_target = frond
             target_diff = diff
 
+    # Create a matrix for stretching the target mesh.
+    stretch_x = bpy.context.scene.gardener_stretch_factor_x
+    stretch_yz = bpy.context.scene.gardener_stretch_factor_yz
+    mat_stretch = Matrix()
+    print(stretch_x)
+
+    if stretch_x > 0:
+        factor_x = ( ( (d / frond_target[4].x) - 1) * stretch_x) + 1
+        axis_x = Vector((factor_x, 0, 0))
+        axis_y = Vector()
+        axis_z = Vector()
+
+        if stretch_yz > 0:
+            factor_y = ( ( (d / frond_target[4].x) - 1) * stretch_yz) + 1
+            factor_z = ( ( (d / frond_target[4].x) - 1) * stretch_yz) + 1
+            axis_y = Vector((0, factor_y, 0))
+            axis_z = Vector((0, 0, factor_z))
+        
+        mat_stretch[0][0:3] = axis_x
+        mat_stretch[1][0:3] = axis_y
+        mat_stretch[2][0:3] = axis_z
+
 
 
     for co in frond_target[0]:
+        co_tr = co.copy()
+
+        if stretch_x > 0:
+            co_tr = co_tr @ mat_stretch
+
         border_dist = take_boundaries(node_dist, co.x)
         i_0 = node_dist.index(border_dist[0])
         i_1 = node_dist.index(border_dist[1])
-        co_tr = co.copy()
+        
         #print("Current Vertex Distance - ", co.x)
         co_tr.x = co_tr.x - border_dist[0]
 
@@ -80,7 +106,7 @@ def build_gardener_branch(nodes, fronds, frond_materials,
         #print("MAT 0 - ", mat_0)
         #print("MAT 1 - ", mat_1)
         
-        
+        # TODO: Use this old code to help smooth the transformations between points instead.
         #lerp_range = (border_dist[1] - border_dist[0])
         #lerp_val = (co.x - border_dist[0]) / lerp_range
         #lerp_val = max(0, min(1, lerp_val))
@@ -203,6 +229,7 @@ def load_frond_set(collection, scale_to_twig):
 def get_bounds(obj):
     """
     Returns useful information from the bounds of an object.
+    Thanks zeffii!
     """
 
     local_coords = obj.bound_box[:]

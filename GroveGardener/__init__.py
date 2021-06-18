@@ -47,6 +47,11 @@ class GardenerPanel(bpy.types.Panel):
         row = layout.column(align=False)
         row.prop(scene, "gardener_use_fronds")
         row.prop(scene, "gardener_frond_collection")
+        row.separator()
+        row.prop(scene, "gardener_stretch_factor_x")
+        row.prop(scene, "gardener_stretch_factor_yz")
+        row.separator()
+
         row.prop(scene, "gardener_thickness_preserve")
         row.prop(scene, "gardener_reduce_edgeloops")
         row.prop(scene, "gardener_edgeloop_reduce_factor")
@@ -73,13 +78,38 @@ def register():
         name="Frond Collection",
         description="The collection of objects that will be used as Fronds.",
     )
+
+    bpy.types.Scene.gardener_stretch_factor_x = FloatProperty(
+        name="Stretch X",
+        description="Determines how much a frond mesh wiil stretch along the X axis to better match the branch it replaces.",
+        default=0.4, 
+        min=0.0, 
+        max=1.0, 
+        step=10, 
+        precision=2, 
+        subtype='FACTOR',
+    )
+
+    bpy.types.Scene.gardener_stretch_factor_yz = FloatProperty(
+        name="Stretch Y/Z",
+        description="Determines how much a frond mesh wiil stretch along the Y and Z axis in proportion to the amount it stretches on the X axis.",
+        default=0.4, 
+        min=0.0, 
+        max=1.0, 
+        step=10, 
+        precision=2, 
+        subtype='FACTOR',
+    )
     
     bpy.types.Scene.gardener_thickness_preserve = FloatProperty(
         name="Thickness Cutoff",
         description="Decides what branches should not be converted based on their thickness.  Branches equal to or thicker than this will be preserved",
-        min=0.0,
-        max=1.0,
-        default=0.1,
+        default=0.1, 
+        min=0.0, 
+        soft_max=1.0, 
+        step=100, 
+        precision=2, 
+        subtype='FACTOR',
     )
 
     bpy.types.Scene.gardener_reduce_edgeloops = BoolProperty(
@@ -91,9 +121,12 @@ def register():
     bpy.types.Scene.gardener_edgeloop_reduce_factor = FloatProperty(
         name="Edge Loop Angle Limit",
         description="Controls the aggressiveness of the edge loop removal code.  A lower number will remove more loops.",
-        min=0.0,
-        max=1.0,
-        default=0.5,
+        default=0.9, 
+        min=0.0, 
+        soft_max=1.0, 
+        step=100, 
+        precision=2, 
+        subtype='FACTOR',
     )
     
 
@@ -101,6 +134,8 @@ def unregister():
 
     del bpy.types.Scene.gardener_use_fronds
     del bpy.types.Scene.gardener_frond_collection
+    del bpy.types.Scene.gardener_stretch_factor_x
+    del bpy.types.Scene.gardener_stretch_factor_yz
     del bpy.types.Scene.gardener_thickness_preserve
     del bpy.types.Scene.gardener_reduce_edgeloops
     del bpy.types.Scene.gardener_edgeloop_reduce_factor
