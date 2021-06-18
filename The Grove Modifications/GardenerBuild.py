@@ -6,67 +6,84 @@ from mathutils import Matrix, Vector, Quaternion
 from bisect import bisect_left
 
 # This code is responsible for drawing branches with an alternate method.
-def build_gardener_branch(nodes, fronds, origin, scale_to_twig, tan, axi,
+def build_gardener_branch(nodes, fronds, frond_materials, 
+                          origin, scale_to_twig, pos, tan, axi,
                           v, verts_append, faces_append, uvs_extend):
     
     frond_mesh = fronds[0][0]
+
+    #print("/n")
+    #print("*** NEW FROND! ***")
+    #print("/n")
     
     # Sort branch nodes by distance.
     i = 0
     d = 0.0
-    node_dist = []
+    node_dist = [0.0]
+    
     while i < (len(nodes) - 1):
-        p_diff = nodes[i + 1].pos - nodes[i].pos
-        d += abs(p_diff.length)
+        p_diff = pos[i + 1] - pos[i]
+        d += p_diff.length
         node_dist.append(d)
         i += 1
+    
+    i = 0
+    transform_points = []
+    while i < (len(nodes)):
+        pos_i = pos[i]
+        tan_i = tan[i]
+        axi_i = axi[i]
+        
+        # NOTE - The tangents used are not a full direction towards the next node,
+        # keep that in mind when making transformations
+        mat_i = Matrix()
+        mat_i[0][0:3] = tan_i
+        mat_i[1][0:3] = axi_i
+        mat_i[2][0:3] = tan_i.cross(axi_i)
+
+        #mat_i.normalize()  # This didnt seem to help, presumably because it's already normalized.
+        #offset_pos = pos_i - pos[0]
+        #mat_i.col[3] = Vector((offset_pos.x, offset_pos.y, offset_pos.z, 1)) # Neither did this T _ T
+        transform_points.append(mat_i)
+
+        i += 1
+    
+    #print("Node Distances : ", node_dist)
+    #print("/n")
 
 
     for co in frond_mesh[0]:
         border_dist = take_boundaries(node_dist, co.x)
         i_0 = node_dist.index(border_dist[0])
         i_1 = node_dist.index(border_dist[1])
+        co_tr = co.copy()
+        #print("Current Vertex Distance - ", co.x)
+        co_tr.x = co_tr.x - border_dist[0]
 
-        n_0 = nodes[i_0]
-        n_1 = nodes[i_1]
-        tan_0 = tan[i_0]
-        tan_1 = tan[i_1]
-        axi_0 = axi[i_0]
-        axi_1 = axi[i_1]
-        pos_0 = n_0.pos
-        pos_1 = n_1.pos
+        # print("X: ", co.x)
+        # print("Indexes Found: ", i_0, i_1)
 
-        lerp_range = (border_dist[1] - border_dist[0])
-        lerp_val = (co.x - border_dist[0]) / lerp_range
-        lerp_val = max(0, min(1, lerp_val))
-
-        co_tan = tan_0.lerp(tan_1, lerp_val)
-        co_axi = axi_0.lerp(axi_1, lerp_val)
-        co_pos = pos_0.lerp(pos_1, lerp_val)
-
-        mat = Matrix()
-        mat[0][0:3] = co_tan
-        mat[1][0:3] = co_axi
-        mat[2][0:3] = co_tan.cross(co_axi)
-
-        mat_scl = Matrix.Scale((1/ scale_to_twig), 4)
-
-        co_tr = co @ mat
-        co_tr = co_tr @ mat_scl
-        new_co = co_tr + (co_pos - origin)
+        mat_0 = transform_points[i_0]
+        #mat_1 = transform_points[i_1]
+        #print("MAT 0 - ", mat_0)
+        #print("MAT 1 - ", mat_1)
+        
+        
+        #lerp_range = (border_dist[1] - border_dist[0])
+        #lerp_val = (co.x - border_dist[0]) / lerp_range
+        #lerp_val = max(0, min(1, lerp_val))
+        #mat_tf = mat_0.lerp(mat_1, lerp_val)
+        #print("Lerp Value - ", lerp_val)
+        
+        #print("New TF - ", mat_tf)
+        #print("Current Vertex - ", co_tr)
+        
+        new_co = co_tr @ mat_0
+        new_co = new_co + pos[i_0]
+        #print("New Vertex - ", new_co)
+        #print("*"*20)
         verts_append(new_co)
 
-
-    # Build a matrix given the tangent, axis and it's cross-product.
-    # mat = Matrix()
-    # mat[0][0:3] = tan[0]
-    # mat[1][0:3] = axi[0]
-    # mat[2][0:3] = tan[0].cross(axi[0])
-    
-    # for co in frond_mesh[0]:
-    #     co_tr = co @ mat
-    #     new_co = co_tr + pos_offset
-    #     verts_append(new_co)
 
     for face in frond_mesh[1]:
         new_face = []
@@ -77,12 +94,25 @@ def build_gardener_branch(nodes, fronds, origin, scale_to_twig, tan, axi,
     for uv in frond_mesh[2]:
         uvs_extend(uv)
 
+    # Copies the same system for data layers as simulation_items to keep things uniform.
+    # ...just in a clunkier way Q _ Q
+    i = 0
+    
+    for mat_id in frond_mesh[3]:
+        for id_list in frond_materials.values():
+            if i == mat_id:
+                id_list.append(1.0)
+            else:
+                id_list.append(0.0)
+            i += 1
+        i = 0
+
     return len(frond_mesh[0])
 
     
 
 # PLACEHOLDER: Loads the requested type of twig geometry for use in building.
-def load_frond_set(collection):
+def load_frond_set(collection, scale_to_twig):
 
     """
     Loads a mesh-based object and returns it's individual components (minus normals).
@@ -106,9 +136,13 @@ def load_frond_set(collection):
             faces = []
             uvs = []
             mat_ids = []
+            mat_names = []
+
+            mat_scl = Matrix.Scale((1/ scale_to_twig), 4)
 
             for vertex in me.vertices:
-                vertices.append(vertex.co.copy())
+                co_scale = vertex.co.copy() @ mat_scl
+                vertices.append(co_scale)
 
             for poly in me.polygons:
                 f = []
@@ -135,8 +169,11 @@ def load_frond_set(collection):
                             mat_ids[idx] = item - 1
 
                 else:
+                    mat_names.append(mat.name)
                     material_layers.append(mat.name)
             
+            print("Frond Mat ID Count:", len(mat_ids))
+
             frond_data.append([vertices, faces, uvs, mat_ids])
 
             id_index += len(mat_names)
@@ -149,18 +186,20 @@ def load_frond_set(collection):
 def sort_vertices_on_x(verts):
     """
     Takes a set of vertices and returns a list of indexes sorted on their X value. 
-    lowest is first.  Not sure if I need this anymore.    
+    lowest is first.  Not sure if I need this anymore.   
+
+    NOTE - No longer used, here just in case.
     """
 
     indexes = []
     i = 0
-    while i < len(vertices):
+    while i < len(verts):
         indexes.append(i)
         i += 1
 
     indexed_t = tuple(zip(indexes, verts))
     sorted_t = sorted(indexed_t, key = lambda p: p[1].x)
-    return [p[0] for p in sorted_tuple]
+    return [p[0] for p in sorted_t]
 
 
 def take_boundaries(myList, myNumber):
