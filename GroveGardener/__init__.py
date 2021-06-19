@@ -29,38 +29,93 @@ from bpy.types import Menu
 from bpy.types import Operator
 from bpy.props import IntProperty, FloatProperty, BoolProperty, PointerProperty
 
-class GardenerPanel(bpy.types.Panel):
+class GARDENER_PT_MainPanel(bpy.types.Panel):
     """Creates a Panel in the Object properties window"""
 
-    bl_label = "Gardener"
-    bl_idname = "VIEW3D_PT_Grove_Gardener"
     bl_space_type = 'VIEW_3D'
-    bl_category = "Grove 10"
     bl_region_type = 'UI'
+    bl_label = "Gardener"
+    bl_idname = "GARDENER_PT_MainPanel"
+    bl_category = "Grove 10"
+    
     
 
     def draw(self, context):
         layout = self.layout
-
         scene = bpy.context.scene
 
         row = layout.column(align=False)
+        #row.use_property_split = True
+        #row.use_property_decorate = False
         row.prop(scene, "gardener_use_fronds")
+
+
+class GARDENER_PT_FrondSettings(bpy.types.Panel):
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_label = "Fronds"
+    bl_parent_id = "GARDENER_PT_MainPanel"
+
+    def draw(self, context):
+        layout = self.layout
+        scene = bpy.context.scene
+
+        row = layout.column(align=False)
+        row.use_property_split = True
+        row.use_property_decorate = False
         row.prop(scene, "gardener_frond_collection")
         row.separator()
+        row.prop(scene, "gardener_thickness_preserve")
+        row.separator()
+        row.prop(scene, "gardener_smooth_factor")
         row.prop(scene, "gardener_stretch_factor_x")
         row.prop(scene, "gardener_stretch_factor_yz")
         row.separator()
 
-        row.prop(scene, "gardener_thickness_preserve")
+class GARDENER_PT_LoopSettings(bpy.types.Panel):
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_label = "Edge Loops"
+    bl_parent_id = "GARDENER_PT_MainPanel"
+
+    def draw(self, context):
+        layout = self.layout
+        scene = bpy.context.scene
+
+        row = layout.column(align=False)
+        row.use_property_split = True
+        row.use_property_decorate = False
+
+        
         row.prop(scene, "gardener_reduce_edgeloops")
         row.prop(scene, "gardener_edgeloop_reduce_factor")
+    
+class GARDENER_PT_DataLayers(bpy.types.Panel):
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_label = "Extra Data Layers"
+    bl_parent_id = "GARDENER_PT_MainPanel"
 
+    def draw(self, context):
+        layout = self.layout
+        scene = bpy.context.scene
+
+        row = layout.column(align=False)
+        row.use_property_split = True
+        row.use_property_decorate = False
+
+        row.prop(scene, "gardener_datalayer_x", text="X Axis")
+        row.prop(scene, "gardener_datalayer_y", text="Y Axis")
+        row.prop(scene, "gardener_datalayer_z", text="Z Axis")
 
 
 
 classes = (
-    GardenerPanel,
+    GARDENER_PT_MainPanel,
+    GARDENER_PT_FrondSettings,
+    GARDENER_PT_LoopSettings,
+    GARDENER_PT_DataLayers,
+    
 )
 
 def register():
@@ -68,15 +123,26 @@ def register():
         register_class(cls)
 
     bpy.types.Scene.gardener_use_fronds = BoolProperty(
-        name="Use Fronds",
-        description="If true, small branches will be replaced with fronds that match their curvature and shape.",
+        name="Build with Grove Gardener",
+        description="If true, Grove Gardener will be used during the build process to replace branches and perform other tasks.",
         default=False,
     )
 
     bpy.types.Scene.gardener_frond_collection = PointerProperty(
         type=bpy.types.Collection,
         name="Frond Collection",
-        description="The collection of objects that will be used as Fronds.",
+        description="The collection of objects that will be used as Fronds. Grove Gardener will match the length of branches you provide with the length of the twig to be replaced as closely as possible.",
+    )
+
+    bpy.types.Scene.gardener_smooth_factor = FloatProperty(
+        name="Smoothing",
+        description="Determines the tightness of a bend that Gardener will select to automatically smooth (WIP)",
+        default=0.4, 
+        min=0.0, 
+        max=1.0, 
+        step=10, 
+        precision=2, 
+        subtype='FACTOR',
     )
 
     bpy.types.Scene.gardener_stretch_factor_x = FloatProperty(
@@ -128,17 +194,47 @@ def register():
         precision=2, 
         subtype='FACTOR',
     )
+
+    bpy.types.Scene.gardener_datalayer_x = BoolProperty(
+        name="X Axis Data Layer",
+        description="Adds an additional vertex group to bake the relative X position of every node in the tree.",
+        default=False,
+    )
+
+    bpy.types.Scene.gardener_datalayer_y = BoolProperty(
+        name="Y Axis Data Layer",
+        description="Adds an additional vertex group to bake the relative Y position of every node in the tree.",
+        default=False,
+    )
+
+    bpy.types.Scene.gardener_datalayer_z = BoolProperty(
+        name="Z Axis Data Layer",
+        description="Adds an additional vertex group to bake the relative Z position of every node in the tree.",
+        default=False,
+    )
+
+    bpy.types.Scene.gardener_datalayer_z = BoolProperty(
+        name="Distance From Trunk Layer",
+        description="Adds an additional vertex group to bake the relative Z position of every node in the tree.",
+        default=False,
+    )
     
 
 def unregister():
 
     del bpy.types.Scene.gardener_use_fronds
     del bpy.types.Scene.gardener_frond_collection
+    del bpy.types.Scene.gardener_smooth_factor
     del bpy.types.Scene.gardener_stretch_factor_x
     del bpy.types.Scene.gardener_stretch_factor_yz
     del bpy.types.Scene.gardener_thickness_preserve
+
     del bpy.types.Scene.gardener_reduce_edgeloops
     del bpy.types.Scene.gardener_edgeloop_reduce_factor
+
+    del bpy.types.Scene.gardener_datalayer_x
+    del bpy.types.Scene.gardener_datalayer_y
+    del bpy.types.Scene.gardener_datalayer_z
 
     for cls in classes:
         unregister_class(cls)
