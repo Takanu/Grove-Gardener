@@ -61,7 +61,8 @@ def build_gardener_branch(nodes, fronds, frond_materials,
             frond_target = frond
             target_diff = diff
 
-    # Create a matrix for stretching the target mesh.
+    # Create a matrix for stretching the target mesh, 
+    # used to better fit the length of the branch.
     stretch_x = bpy.context.scene.gardener_stretch_factor_x
     stretch_yz = bpy.context.scene.gardener_stretch_factor_yz
     mat_stretch = Matrix()
@@ -70,8 +71,8 @@ def build_gardener_branch(nodes, fronds, frond_materials,
     if stretch_x > 0:
         factor_x = ( ( (d / frond_target[4].x) - 1) * stretch_x) + 1
         axis_x = Vector((factor_x, 0, 0))
-        axis_y = Vector()
-        axis_z = Vector()
+        axis_y = Vector((0, 1, 0))
+        axis_z = Vector((0, 0, 1))
 
         if stretch_yz > 0:
             factor_y = ( ( (d / frond_target[4].x) - 1) * stretch_yz) + 1
@@ -94,33 +95,39 @@ def build_gardener_branch(nodes, fronds, frond_materials,
         border_dist = take_boundaries(node_dist, co.x)
         i_0 = node_dist.index(border_dist[0])
         i_1 = node_dist.index(border_dist[1])
-        
-        #print("Current Vertex Distance - ", co.x)
         co_tr.x = co_tr.x - border_dist[0]
-
-        # print("X: ", co.x)
-        # print("Indexes Found: ", i_0, i_1)
-
+        
+        
+        # Get the initial transform of the point we start from,
+        # as well as two tangents used to smooth the rotation of 
+        # our points.
         mat_0 = transform_points[i_0]
-        #mat_1 = transform_points[i_1]
-        #print("MAT 0 - ", mat_0)
-        #print("MAT 1 - ", mat_1)
+        tan_origin = tan[i_0]
+        tan_0 = ((tan[i_0])).normalized()
+        tan_1 = ((tan[i_1])).normalized()
         
-        # TODO: Use this old code to help smooth the transformations between points instead.
-        #lerp_range = (border_dist[1] - border_dist[0])
-        #lerp_val = (co.x - border_dist[0]) / lerp_range
-        #lerp_val = max(0, min(1, lerp_val))
-        #mat_tf = mat_0.lerp(mat_1, lerp_val)
-        #print("Lerp Value - ", lerp_val)
+        if i_1 < len(tan) - 1:
+            tan_1 = ((tan[i_0] + tan[i_1])).normalized()
+        if i_0 > 0:
+            tan_0 = ((tan[i_0] + tan[i_0 - 1])).normalized()
         
-        #print("New TF - ", mat_tf)
-        #print("Current Vertex - ", co_tr)
+        # This lerp code has been verified!  V E R I F I E D
+        lerp_range = (border_dist[1] - border_dist[0])
+        lerp_val = (co.x - border_dist[0]) / lerp_range
+        lerp_val = max(0, min(1, lerp_val))
+        tan_lerp = tan_0.lerp(tan_1, lerp_val)
         
-        new_co = co_tr @ mat_0
-        new_co = new_co + pos[i_0]
-        #print("New Vertex - ", new_co)
-        #print("*"*20)
-        verts_append(new_co)
+        rotation_mat = rotate_align(tan_origin, tan_lerp)
+        print("Lerp: ", lerp_val)
+        
+        co_tr_xb = co_tr.x
+        co_tr.x = 0
+        co_tr =  rotation_mat @ co_tr
+        co_tr.x += co_tr_xb
+        
+        co_tr = co_tr @ mat_0
+        co_tr = co_tr + pos[i_0]
+        verts_append(co_tr.copy())
 
 
     for face in frond_target[1]:
@@ -291,3 +298,30 @@ def take_boundaries(myList, myNumber):
     before = myList[pos - 1]
     after = myList[pos]
     return [before, after]
+
+
+def rotate_align(v1, v2):
+    """
+    Returns the matrix that would allow v1 to be rotated to become v2.
+    
+    Adapted from https://gist.github.com/kevinmoran/b45980723e53edeb8a5a43c49f134724
+    """
+
+    axis = v1.cross(v2);
+    cosA = v1.dot(v2);
+    k = 1.0 / (1.0 + cosA);
+    
+    rot_matrix = Matrix()
+    rot_matrix[0][0] = (axis.x * axis.x * k) + cosA
+    rot_matrix[0][1] = (axis.y * axis.x * k) - axis.z
+    rot_matrix[0][2] = (axis.z * axis.x * k) + axis.y
+    
+    rot_matrix[1][0] = (axis.x * axis.y * k) + axis.z
+    rot_matrix[1][1] = (axis.y * axis.y * k) + cosA
+    rot_matrix[1][2] = (axis.z * axis.y * k) - axis.x
+
+    rot_matrix[2][0] = (axis.x * axis.z * k) - axis.y
+    rot_matrix[2][1] = (axis.y * axis.z * k) + axis.x
+    rot_matrix[2][2] = (axis.z * axis.z * k) + cosA
+
+    return rot_matrix;

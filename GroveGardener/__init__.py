@@ -89,6 +89,24 @@ class GARDENER_PT_LoopSettings(bpy.types.Panel):
         
         row.prop(scene, "gardener_reduce_edgeloops")
         row.prop(scene, "gardener_edgeloop_reduce_factor")
+
+class GARDENER_PT_Normals(bpy.types.Panel):
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_label = "Normal Reprojection"
+    bl_parent_id = "GARDENER_PT_MainPanel"
+
+    def draw(self, context):
+        layout = self.layout
+        scene = bpy.context.scene
+
+        row = layout.column(align=False)
+        row.use_property_split = True
+        row.use_property_decorate = False
+
+        
+        row.prop(scene, "gardener_normal_hull_res")
+        row.prop(scene, "gardener_normal_hull_size")
     
 class GARDENER_PT_DataLayers(bpy.types.Panel):
     bl_space_type = "VIEW_3D"
@@ -114,6 +132,7 @@ classes = (
     GARDENER_PT_MainPanel,
     GARDENER_PT_FrondSettings,
     GARDENER_PT_LoopSettings,
+    GARDENER_PT_Normals,
     GARDENER_PT_DataLayers,
     
 )
@@ -195,6 +214,27 @@ def register():
         subtype='FACTOR',
     )
 
+    bpy.types.Scene.gardener_normal_hull_res = FloatProperty(
+        name="Hull Resolution",
+        description="Affects the voxel size of the normal hull used to create smoother tree normals.",
+        default=35.0, 
+        min=0.0, 
+        soft_max=100.0, 
+        step=1000, 
+        precision=2, 
+        subtype='FACTOR',
+    )
+
+    bpy.types.Scene.gardener_normal_hull_size = FloatProperty(
+        name="Hull Size",
+        description="Affects the amount the hull is scaled up in order to surround the tree before normal reprojection.",
+        default=1.3, 
+        min=1.0, 
+        soft_max=3.0, 
+        precision=2, 
+        subtype='FACTOR',
+    )
+
     bpy.types.Scene.gardener_datalayer_x = BoolProperty(
         name="X Axis Data Layer",
         description="Adds an additional vertex group to bake the relative X position of every node in the tree.",
@@ -231,6 +271,9 @@ def unregister():
 
     del bpy.types.Scene.gardener_reduce_edgeloops
     del bpy.types.Scene.gardener_edgeloop_reduce_factor
+
+    del bpy.types.Scene.gardener_normal_hull_res
+    del bpy.types.Scene.gardener_normal_hull_size
 
     del bpy.types.Scene.gardener_datalayer_x
     del bpy.types.Scene.gardener_datalayer_y
