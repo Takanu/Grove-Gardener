@@ -217,7 +217,7 @@ def register():
     bpy.types.Scene.gardener_normal_hull_res = FloatProperty(
         name="Hull Resolution",
         description="Affects the voxel size of the normal hull used to create smoother tree normals",
-        default=0.35, 
+        default=0.5, 
         min=0.1, 
         soft_max=1, 
         precision=2, 
