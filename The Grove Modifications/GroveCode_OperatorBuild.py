@@ -2,7 +2,7 @@
 
 # INSTALLATION : Add this to the top of the Branch file (around line 27)
 
-from .GardenerBuild import load_frond_set
+from .GardenerBuild import load_frond_set, build_normal_reprojection
 
 # This function is a modified version of a definition inside the OperatorBuild file.
 #
@@ -36,16 +36,20 @@ def build_branches_mesh(tree, properties, context):
 
     # Load frond data if we're replacing branches.
     # Also contains an indexed list of all materials used.
-    frond_data = load_frond_set(bpy.context.scene.gardener_frond_collection)
+    gardener_use_fronds = bpy.context.scene.gardener_use_fronds
+    frond_data = []
+    frond_materials = {}
+
+    if gardener_use_fronds:
+        frond_data = load_frond_set(bpy.context.scene.gardener_frond_collection, properties.scale_to_twig)
+        for mat_name in frond_data[1]:
+            frond_materials[mat_name] = []
 
     vertices = []
     faces = []
     uvs = []
     shape = []
-
-    frond_materials = {}
-    for mat_name in frond_data[1]:
-        frond_materials[mat_name] = []
+    
 
     simulation_data = {'layer_shade': [],
                        'layer_thickness': [],
@@ -60,7 +64,9 @@ def build_branches_mesh(tree, properties, context):
                        'layer_upward': [],
                        'layer_dead_twig': [],
                        'layer_branch_index': [],
-                       'layer_branch_index_parent': []}
+                       'layer_branch_index_parent': [],
+                       'layer_frond': [],
+                       }
 
     tree.engulf_branches(None, None)
     tree.build_branches_mesh(properties.lateral_on_apical,
@@ -107,6 +113,10 @@ def build_branches_mesh(tree, properties, context):
 
     ob = bpy.data.objects.new(str(properties.preset_name), me)
     me = ob.data  # Just to be sure. This could fix the unstable behavior.
+
+    # GARDENER - Inserts property booleans to get our custom vertex layers to
+    if gardener_use_fronds:
+        properties.do_layer_frond = True
 
     # Add vertex layers and material groups.
     print(t('build_layers_message'))
@@ -187,15 +197,16 @@ def build_branches_mesh(tree, properties, context):
                                     for i, face in enumerate(faces)]
 
     # Assign custom frond materials
-    custom_i = 0
-    for mat_name, mat_data in frond_materials.items():
-        me.materials.append(bpy.data.materials[mat_name])
-        index = me.materials.find(mat_name)
+    if gardener_use_fronds:
+        custom_i = 0
+        for mat_name, mat_data in frond_materials.items():
+            me.materials.append(bpy.data.materials[mat_name])
+            index = me.materials.find(mat_name)
 
-        for i, face in enumerate(faces):
-            result = index * int(mat_data[i])
-            material_indices[i] = material_indices[i] + result
-    
+            for i, face in enumerate(faces):
+                result = index * int(mat_data[i])
+                material_indices[i] = material_indices[i] + result
+        
     
     # Needle layer WIP. TODO: Finalize!
     if getattr(properties, 'do_layer_young'):
@@ -216,6 +227,12 @@ def build_branches_mesh(tree, properties, context):
     
     # Set material indices for twig duplicator faces.
     me.polygons.foreach_set("material_index", material_indices)
+
+    # GARDENER - Reproject normals using a duplicated hull of the tree.
+    if gardener_use_fronds:
+        hull_res = bpy.context.scene.gardener_normal_hull_res
+        hull_expand = bpy.context.scene.gardener_normal_hull_size
+        build_normal_reprojection(ob, properties.scale_to_twig, hull_res, hull_expand)
 
     me['the_grove'] = 'Grown with The Grove.'
     ob.location = tree.nodes[0].pos * properties.scale_to_twig

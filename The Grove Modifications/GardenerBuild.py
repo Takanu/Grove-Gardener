@@ -11,10 +11,6 @@ def build_gardener_branch(nodes, fronds, frond_materials,
                           v, verts_append, faces_append, uvs_extend):
     
     
-
-    #print("/n")
-    #print("*** NEW FROND! ***")
-    #print("/n")
     
     # Sort branch nodes by distance.
     i = 0
@@ -53,10 +49,8 @@ def build_gardener_branch(nodes, fronds, frond_materials,
     frond_target = None
     target_diff = 0.0
     for j, frond in enumerate(fronds[0]):
-        print(frond[4])
         
         diff = abs(d - frond[4].x)
-        print(diff)
         if j == 0 or diff < target_diff:
             frond_target = frond
             target_diff = diff
@@ -66,7 +60,6 @@ def build_gardener_branch(nodes, fronds, frond_materials,
     stretch_x = bpy.context.scene.gardener_stretch_factor_x
     stretch_yz = bpy.context.scene.gardener_stretch_factor_yz
     mat_stretch = Matrix()
-    print(stretch_x)
 
     if stretch_x > 0:
         factor_x = ( ( (d / frond_target[4].x) - 1) * stretch_x) + 1
@@ -190,7 +183,6 @@ def load_frond_set(collection, scale_to_twig):
             bounds = get_bounds(obj)
             bound_dist = Vector((bounds.x.distance, bounds.y.distance, bounds.z.distance))
             bound_dist = bound_dist / scale_to_twig
-            print(" B O U N D A R Y - ", bound_dist)
 
             mat_scl = Matrix.Scale((1/ scale_to_twig), 4)
 
@@ -225,8 +217,6 @@ def load_frond_set(collection, scale_to_twig):
                 else:
                     mat_names.append(mat.name)
                     material_layers.append(mat.name)
-            
-            print("Frond Mat ID Count:", len(mat_ids))
 
             frond_data.append([vertices, faces, uvs, mat_ids, bound_dist])
 
@@ -327,3 +317,71 @@ def rotate_align(v1, v2):
     rot_matrix[2][2] = (axis.z * axis.z * k) + cosA
 
     return rot_matrix;
+
+
+def build_normal_reprojection(ob, scale_to_twig, hull_res, hull_expand):
+
+    # i dont wan't to do this elsewhere, so just add the object to a fake
+    # collection to consider it "registered"
+    collection = bpy.data.collections.new("Gardener's Terrible Little Secret")
+    bpy.context.scene.collection.children.link(collection)
+    collection.objects.link(ob)
+
+    # select tree and duplicate
+    bpy.ops.object.select_all(action='DESELECT')
+    bpy.context.view_layer.objects.active = ob 
+    ob.select_set(True)
+
+    bpy.ops.object.duplicate()
+    ob_hull = bpy.context.active_object
+    bpy.ops.object.select_all(action='DESELECT')
+    bpy.context.view_layer.objects.active = ob_hull 
+
+    # add remesh modifier and apply
+    bpy.ops.object.modifier_add(type='REMESH')
+    remesh = ob_hull.modifiers['Remesh']
+    remesh.mode = 'VOXEL'
+    remesh.use_smooth_shade = True
+    remesh.voxel_size = hull_res / scale_to_twig
+    bpy.ops.object.modifier_apply({"object" : ob_hull}, modifier=remesh.name)
+    
+    # enter edit mode and shrink/fatten model
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.mesh.select_all(action='SELECT')
+
+    bpy.ops.transform.shrink_fatten(value=(hull_expand / scale_to_twig), 
+        mirror=False, use_proportional_edit=False, snap=False, release_confirm=False)
+
+    bpy.ops.mesh.select_all(action='DESELECT')
+    bpy.ops.object.mode_set(mode='OBJECT')
+
+    # add another remesh modifier to smooth it out
+    bpy.ops.object.modifier_add(type='REMESH')
+    remesh = ob_hull.modifiers['Remesh']
+    remesh.mode = 'VOXEL'
+    remesh.use_smooth_shade = True
+    remesh.voxel_size = hull_res / scale_to_twig
+    bpy.ops.object.modifier_apply({"object" : ob_hull}, modifier=remesh.name)
+
+    # select original tree
+    bpy.ops.object.select_all(action='DESELECT')
+    bpy.context.view_layer.objects.active = ob 
+    ob.select_set(True)
+
+    # add data transfer and apply
+    ob.data.use_auto_smooth = True
+    bpy.ops.object.modifier_add(type='DATA_TRANSFER')
+    data_transfer = ob.modifiers['DataTransfer']
+    data_transfer.vertex_group = "layer_frond"
+    data_transfer.object = ob_hull
+    data_transfer.use_loop_data = True
+    data_transfer.data_types_loops = {'CUSTOM_NORMAL'}
+    data_transfer.loop_mapping = 'NEAREST_POLYNOR'
+    bpy.ops.object.modifier_apply({"object" : ob}, modifier=data_transfer.name)
+
+    # delete the trash and run away
+    bpy.data.objects.remove(ob_hull, do_unlink=True)
+    bpy.context.scene.collection.children.unlink(collection)
+    bpy.data.collections.remove(collection)
+
+    bpy.ops.object.select_all(action='DESELECT') 

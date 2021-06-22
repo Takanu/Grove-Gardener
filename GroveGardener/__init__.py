@@ -155,7 +155,7 @@ def register():
 
     bpy.types.Scene.gardener_smooth_factor = FloatProperty(
         name="Smoothing",
-        description="Determines the tightness of a bend that Gardener will select to automatically smooth (WIP)",
+        description="Determines the tightness of a bend that Gardener will select to automatically smooth.  WARNING - Work in progress, high values may yield weird results.  When pruning this value will make the frond move away from the actual location of the branch data so beeeee careful!",
         default=0.4, 
         min=0.0, 
         max=5.0, 
@@ -205,7 +205,7 @@ def register():
 
     bpy.types.Scene.gardener_edgeloop_reduce_factor = FloatProperty(
         name="Edge Loop Angle Limit",
-        description="Controls the aggressiveness of the edge loop removal code.  A lower number will remove more loops.",
+        description="Controls the aggressiveness of the edge loop removal code.  A lower number will remove more loops.  WARNING - Work in progress, results will often look a lil jagged",
         default=0.9, 
         min=0.0, 
         soft_max=1.0, 
@@ -216,28 +216,27 @@ def register():
 
     bpy.types.Scene.gardener_normal_hull_res = FloatProperty(
         name="Hull Resolution",
-        description="Affects the voxel size of the normal hull used to create smoother tree normals.",
-        default=35.0, 
-        min=0.0, 
-        soft_max=100.0, 
-        step=1000, 
+        description="Affects the voxel size of the normal hull used to create smoother tree normals",
+        default=0.35, 
+        min=0.1, 
+        soft_max=1, 
         precision=2, 
-        subtype='FACTOR',
+        subtype='DISTANCE',
     )
 
     bpy.types.Scene.gardener_normal_hull_size = FloatProperty(
-        name="Hull Size",
-        description="Affects the amount the hull is scaled up in order to surround the tree before normal reprojection.",
-        default=1.3, 
-        min=1.0, 
-        soft_max=3.0, 
-        precision=2, 
-        subtype='FACTOR',
+        name="Hull Expand",
+        description="Affects the amount the hull is scaled up in order to surround the tree before normal reprojection.  Higher values ensure the reprojection mesh will surround the tree, but the mesh will be less accurate",
+        default=0.2, 
+        min=0.01, 
+        soft_max=0.5, 
+        precision=1, 
+        subtype='DISTANCE',
     )
 
     bpy.types.Scene.gardener_datalayer_x = BoolProperty(
         name="X Axis Data Layer",
-        description="Adds an additional vertex group to bake the relative X position of every node in the tree.",
+        description="Adds an additional vertex group to bake the relative X position of every node in the tree",
         default=False,
     )
 
