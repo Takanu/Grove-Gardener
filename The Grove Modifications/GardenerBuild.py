@@ -101,29 +101,31 @@ def build_gardener_branch(nodes, fronds, frond_materials,
         # Get the initial transform of the point we start from,
         # as well as two tangents used to smooth the rotation of 
         # our points.
+        #
+        # Causes distortion, will patch in later once fixed
+        #
         mat_0 = transform_points[i_0]
-        tan_origin = tan[i_0]
-        tan_0 = ((tan[i_0])).normalized()
-        tan_1 = ((tan[i_1])).normalized()
+        # tan_origin = tan[i_0]
+        # tan_0 = ((tan[i_0])).normalized()
+        # tan_1 = ((tan[i_1])).normalized()
         
-        if i_1 < len(tan) - 1:
-            tan_1 = ((tan[i_0] + tan[i_1])).normalized()
-        if i_0 > 0:
-            tan_0 = ((tan[i_0] + tan[i_0 - 1])).normalized()
+        # if i_1 < len(tan) - 1:
+        #     tan_1 = ((tan[i_0] + tan[i_1])).normalized()
+        # if i_0 > 0:
+        #     tan_0 = ((tan[i_0] + tan[i_0 - 1])).normalized()
         
-        # This lerp code has been verified!  V E R I F I E D
-        lerp_range = (border_dist[1] - border_dist[0])
-        lerp_val = (co.x - border_dist[0]) / lerp_range
-        lerp_val = max(0, min(1, lerp_val))
-        tan_lerp = tan_0.lerp(tan_1, lerp_val)
+        # # This lerp code has been verified!  V E R I F I E D
+        # lerp_range = (border_dist[1] - border_dist[0])
+        # lerp_val = (co.x - border_dist[0]) / lerp_range
+        # lerp_val = max(0, min(1, lerp_val))
+        # tan_lerp = tan_0.lerp(tan_1, lerp_val)
         
-        rotation_mat = rotate_align(tan_origin, tan_lerp)
-        print("Lerp: ", lerp_val)
+        # rotation_mat = rotate_align(tan_origin, tan_lerp)
         
-        co_tr_xb = co_tr.x
-        co_tr.x = 0
-        co_tr =  rotation_mat @ co_tr
-        co_tr.x += co_tr_xb
+        # co_tr_xb = co_tr.x
+        # co_tr.x = 0
+        # co_tr =  rotation_mat @ co_tr
+        # co_tr.x += co_tr_xb
         
         co_tr = co_tr @ mat_0
         co_tr = co_tr + pos[i_0]

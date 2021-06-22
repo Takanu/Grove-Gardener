@@ -312,13 +312,47 @@ def build_branches_mesh(self, lateral_on_apical,
     
     # TK NOTE - USEFUL DATA FOR ALL NODES IN THE CURRENT BRANCH CALCULATED HERE!
 
+    # Set some values for easy access.
+    gardener_reduce_el = bpy.context.scene.gardener_reduce_edgeloops
+    gardener_reduce_el_value = bpy.context.scene.gardener_edgeloop_reduce_factor
+    thickness_intervention_value = bpy.context.scene.gardener_thickness_preserve
+    gardener_use_fronds = bpy.context.scene.gardener_use_fronds
+
+    # Does Grove Gardener need to intervene?  DECIDE NOW.
+    gardener_intervention = False
+    if gardener_use_fronds is True:
+        if self.nodes[0].thickness < thickness_intervention_value:
+            gardener_intervention = True
+
+    
     # Calculate tangent and axis for each node.
     pos = []  # pos
     tan = []  # tangent
     axi = []  # axis
+    dir = []  # direction (like tangent, but has length)
 
+    # this is slightly modified to remove references to variables not
+    # currently applicable.
+
+    last_node_index = len(nodes) - 1
     last_direction = nodes[1].pos - nodes[0].pos
+    cur_twist = 0.0
+
+    # Defines what range of nodes the smoothing process uses.
+    # 3 seems to work so far, this solution requires more effort though
+    smooth_range = 3
+    if smooth_range > len(nodes):
+        smooth_range = len(nodes)
+
+    # This defines how much corners are smoothed, proportional to the
+    # sharpness of each node
+    smooth_value = bpy.context.scene.gardener_smooth_factor
+    
     for j, n in enumerate(nodes):
+        
+        tangent = Vector()
+        direction = Vector()
+
         if spring_shape:
             pos.append(n.pos_last_year)
 
@@ -327,7 +361,8 @@ def build_branches_mesh(self, lateral_on_apical,
             else:
                 direction = nodes[j + 1].pos - n.pos
         
-        else:
+        # No smooth value or Gardener Build?  No problem.
+        elif smooth_value == 0 or gardener_intervention is False:
             pos.append(n.pos)
 
             if j == last_node_index:
@@ -335,13 +370,93 @@ def build_branches_mesh(self, lateral_on_apical,
             else:
                 direction = nodes[j + 1].pos - n.pos
 
-        if j == 0:
-            tangent = direction
+            if j == 0:
+                tangent = direction
+            else:
+                tangent = (direction + last_direction) / 2.0
+        
+        # Otherwise we have to do a LOT more.
         else:
-            tangent = (direction + last_direction) / 2.0
+
+            if j >= last_node_index - smooth_range:
+                smooth_range -= 1
+
+            # First and last positions require little change.
+            if j == 0:
+                pos.append(n.pos)
+            
+            # If we're at the last index we need nothing more than 
+            # the last tangent
+            elif j == last_node_index:
+                direction = last_direction
+                tangent = direction
+            
+            # If we're at the penultimate index, we can't use trigonometry
+            # and just have to set the last position
+            elif j == last_node_index - 1:
+                pos.append(nodes[j + 1].pos)
+                direction = nodes[j + 1].pos - pos[j]
+                tangent = direction
+            
+            # Otherwise we need both the current tangent and the next position
+            # derived from it.
+            #
+            # This finds a rotated version of a direction that points towards
+            # the position afterwards, using trigonometry to keep the lengths
+            # proportional.
+            #
+            if j < last_node_index - 1:
+                current_direction = nodes[j + 1].pos - pos[j]
+                next_direction = nodes[j + smooth_range].pos - nodes[j + 1].pos
+                
+                unit_0 = current_direction.normalized()
+                unit_1 = next_direction.normalized()
+                dot = unit_0.dot(unit_1)
+                sharpness = ((dot * -1) + 1) / 2
+                lerp = min((sharpness * smooth_value), 1)
+
+                # Once we have our lerp value, we need a projection axis
+                # with which we can collapse this into two dimensions.
+                p_0 = pos[j]
+                p_1 = nodes[j + 1].pos
+                p_2 = nodes[j + smooth_range].pos
+                v_0 = p_1 - p_0
+                v_1 = p_2 - p_0
+                z_axis = v_0.cross(v_1)
+                y_axis = v_0.cross(z_axis)
+                
+                trig_mat = Matrix()
+                trig_mat[0][0:3] = v_0.normalized()
+                trig_mat[1][0:3] = y_axis.normalized()
+                trig_mat[2][0:3] = z_axis.normalized()
+                
+                # Transform the vectors we need for trigonometry
+                v_A = (v_0 @ trig_mat).xy
+                v_B = (v_1 @ trig_mat).xy
+                
+                # Get the angle between, and then solve for v_B's true length.
+                angle = v_A.angle(v_B)
+                len_B = v_A.length * cos(angle)
+                
+                # Turn v_1 into a unit vector and multiply by the length,
+                # we're finally done!
+                d_unit = v_1.normalized()
+                max_direction = Vector((d_unit.x * len_B, d_unit.y * len_B, d_unit.z * len_B))
+                direction = current_direction.lerp(max_direction, lerp)
+                tangent = direction
+                pos.append(pos[j] + direction)
+
+        
         tangent.normalize()
         tan.append(tangent)
+        dir.append(direction)
+        last_direction = direction
 
+
+    # Axis calculations
+    for j, n in enumerate(nodes):
+        
+        direction = dir[j]
         # axis.
         if j == 0:
             axis = direction.to_track_quat('X', 'Z') @ Vector((0.0, 1.0, 0.0))
@@ -354,7 +469,7 @@ def build_branches_mesh(self, lateral_on_apical,
 
         last_direction = direction * 1.0
     
-    # Minimize twisting.
+    # Minimize twisting around the tangent.
     for j, n in enumerate(nodes):
         if j == 0:
             continue
@@ -392,22 +507,9 @@ def build_branches_mesh(self, lateral_on_apical,
 
     # TK NOTE - This is where the branch is drawn and where I need to substitute stuff
 
-    # Current Gardener Values
-    gardener_reduce_el = bpy.context.scene.gardener_reduce_edgeloops
-    gardener_reduce_el_value = bpy.context.scene.gardener_edgeloop_reduce_factor
-    thickness_intervention_value = bpy.context.scene.gardener_thickness_preserve
-    gardener_use_fronds = bpy.context.scene.gardener_use_fronds
-
-    disable_twigs = True
-
-    gardener_intervention = False
-    if gardener_use_fronds is True:
-        if self.nodes[0].thickness < thickness_intervention_value:
-            gardener_intervention = True
-
     gardener_loop_inc = (1 - gardener_reduce_el_value) / 10
     gardener_cur_reduc_val = gardener_reduce_el_value
-
+    disable_twigs = gardener_intervention
 
     # If gardener is intervening, time to perform the "real" drawing code.
     if gardener_intervention is True:
@@ -421,7 +523,7 @@ def build_branches_mesh(self, lateral_on_apical,
 
         # Build the frond
         results = build_gardener_branch(nodes, fronds, frond_materials, 
-                                        origin, scale_to_twig, tan, axi,
+                                        origin, scale_to_twig, pos, tan, axi,
                                         v, verts_append, faces_append, uvs_extend)
         
         # Populate data layers
@@ -448,6 +550,7 @@ def build_branches_mesh(self, lateral_on_apical,
             layers_branch_index_parent_extend([branch_index_parent] * number)
 
 
+    # If we're NOT using Grove Gardener...
     # Draw current node's profile and connect it to the previous profile with faces.
     else:
         for j, n in enumerate(nodes):

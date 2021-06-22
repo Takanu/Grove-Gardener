@@ -158,7 +158,7 @@ def register():
         description="Determines the tightness of a bend that Gardener will select to automatically smooth (WIP)",
         default=0.4, 
         min=0.0, 
-        max=1.0, 
+        max=5.0, 
         step=10, 
         precision=2, 
         subtype='FACTOR',
