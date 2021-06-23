@@ -122,9 +122,10 @@ class GARDENER_PT_DataLayers(bpy.types.Panel):
         row.use_property_split = True
         row.use_property_decorate = False
 
-        row.prop(scene, "gardener_datalayer_x", text="X Axis")
-        row.prop(scene, "gardener_datalayer_y", text="Y Axis")
-        row.prop(scene, "gardener_datalayer_z", text="Z Axis")
+        row.prop(scene, "gardener_datalayer_height")
+        row.prop(scene, "gardener_datalayer_trunktobranch")
+        row.prop(scene, "gardener_datalayer_branchtofrond")
+        row.prop(scene, "gardener_datalayer_index")
 
 
 
@@ -234,29 +235,30 @@ def register():
         subtype='DISTANCE',
     )
 
-    bpy.types.Scene.gardener_datalayer_x = BoolProperty(
-        name="X Axis Data Layer",
-        description="Adds an additional vertex group to bake the relative X position of every node in the tree",
+    bpy.types.Scene.gardener_datalayer_height = BoolProperty(
+        name="Height",
+        description="Adds an additional vertex group to bake the relative height position of every node in the tree",
         default=False,
     )
 
-    bpy.types.Scene.gardener_datalayer_y = BoolProperty(
-        name="Y Axis Data Layer",
-        description="Adds an additional vertex group to bake the relative Y position of every node in the tree.",
+    bpy.types.Scene.gardener_datalayer_trunktobranch = BoolProperty(
+        name="Trunk to Branch",
+        description="Adds an additional vertex group to bake the relative distance between each part of the tree and the trunk",
         default=False,
     )
 
-    bpy.types.Scene.gardener_datalayer_z = BoolProperty(
-        name="Z Axis Data Layer",
-        description="Adds an additional vertex group to bake the relative Z position of every node in the tree.",
+    bpy.types.Scene.gardener_datalayer_branchtofrond = BoolProperty(
+        name="Branch to Frond",
+        description="Adds an additional vertex group to bake the relative distance between the branch mesh and the tips of every frond mesh",
         default=False,
     )
 
-    bpy.types.Scene.gardener_datalayer_z = BoolProperty(
-        name="Distance From Trunk Layer",
-        description="Adds an additional vertex group to bake the relative Z position of every node in the tree.",
+    bpy.types.Scene.gardener_datalayer_index = BoolProperty(
+        name="Index / Offset",
+        description="Adds an additional vertex group to bake a randomized index value of every branch and frond",
         default=False,
     )
+    
     
 
 def unregister():

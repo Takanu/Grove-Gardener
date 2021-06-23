@@ -3,15 +3,16 @@
 
 # INSTALLATION : Add this to the top of the Branch file (around line 21)
 
-from .GardenerBuild import build_gardener_branch
+import bl_math
+from .GardenerBuild import take_boundaries
 
 
 # -------------------------------------------------------
 
-# This function is a modified version of a definition inside the Branch file.
+# This function is a modified version of build_branches_mesh, inside the Branch file.
 #
 # INSTALLATION : Replace the original definition inside Branch with this 
-# and ensure the tabbing is correct.
+# and ensure the indentation is correct.
 #
 # This function is located at line at around line 1440 (depending on where you add the import
 # statement above)
@@ -298,6 +299,13 @@ def build_branches_mesh(self, lateral_on_apical,
         layers_lateral_extend = layers['layer_lateral'].extend
         layers_branch_index_extend = layers['layer_branch_index'].extend
         layers_branch_index_parent_extend = layers['layer_branch_index_parent'].extend
+        
+        # GARDENER - Gardener-specific data layers
+        layers_frond_extend = layers['layer_frond'].extend
+        layer_height_extend = layers['layer_height'].extend
+        layer_trunk_distance_extend = layers['layer_trunk_distance'].extend
+        layer_branch_distance_extend = layers['layer_branch_distance'].extend
+
         # Prevent division by zero when creating vertex groups.
         if base_weight == 0.0:
             base_weight = 0.0001
@@ -312,13 +320,13 @@ def build_branches_mesh(self, lateral_on_apical,
     
     # TK NOTE - USEFUL DATA FOR ALL NODES IN THE CURRENT BRANCH CALCULATED HERE!
 
-    # Set some values for easy access.
+    # GARDENER - Set some values for easy access.
     gardener_reduce_el = bpy.context.scene.gardener_reduce_edgeloops
     gardener_reduce_el_value = bpy.context.scene.gardener_edgeloop_reduce_factor
     thickness_intervention_value = bpy.context.scene.gardener_thickness_preserve
     gardener_use_fronds = bpy.context.scene.gardener_use_fronds
 
-    # Does Grove Gardener need to intervene?  DECIDE NOW.
+    # GARDENER - Does Grove Gardener need to intervene?  DECIDE NOW.
     gardener_intervention = False
     if gardener_use_fronds is True:
         if self.nodes[0].thickness < thickness_intervention_value:
@@ -375,7 +383,7 @@ def build_branches_mesh(self, lateral_on_apical,
             else:
                 tangent = (direction + last_direction) / 2.0
         
-        # Otherwise we have to do a LOT more.
+        # GARDENER - If we have a smoothing value, we have to do a LOT more.
         else:
 
             if j >= last_node_index - smooth_range:
@@ -503,51 +511,196 @@ def build_branches_mesh(self, lateral_on_apical,
             median_radius = (nodes[o - 1].radius + nodes[o + 1].radius) / 2
             if nodes[o].radius < median_radius:
                 nodes[o].radius = median_radius * 1
-    
 
-    # TK NOTE - This is where the branch is drawn and where I need to substitute stuff
 
+    # ////////////////////////////////////////////////////////////////////////
+    # -----------------------------------------------------------------------
+    # ////////////////////////////////////////////////////////////////////////
+
+    # GARDENER - If it intervenes, its time to perform the "real" drawing code.
     gardener_loop_inc = (1 - gardener_reduce_el_value) / 10
     gardener_cur_reduc_val = gardener_reduce_el_value
     disable_twigs = gardener_intervention
-
-    # If gardener is intervening, time to perform the "real" drawing code.
+    
     if gardener_intervention is True:
         
         # preserve the pitch value of the last node.
         j = len(nodes) - 1
         n = nodes[-1]
-        pitch = 1.0 - (vector_z.angle(tan[j], 0.0) / pi)  # Used for pitch data layer.
-
         radius = nodes[0].radius
 
-        # Build the frond
-        results = build_gardener_branch(nodes, fronds, frond_materials, 
-                                        origin, scale_to_twig, pos, tan, axi,
-                                        v, verts_append, faces_append, uvs_extend)
+        # Sort branch nodes by distance.
+        i = 0
+        d = 0.0
+        node_dist = [0.0]
+        
+        while i < (len(nodes) - 1):
+            p_diff = pos[i + 1] - pos[i]
+            d += p_diff.length
+            node_dist.append(d)
+            i += 1
+        
+        # Build transform points
+        i = 0
+        node_tf_points = []
+        while i < (len(nodes)):
+            pos_i = pos[i]
+            tan_i = tan[i]
+            axi_i = axi[i]
+            
+            # NOTE - The tangents used are not a full direction towards the next node,
+            # keep that in mind when making transformations
+            mat_i = Matrix()
+            mat_i[0][0:3] = tan_i
+            mat_i[1][0:3] = axi_i
+            mat_i[2][0:3] = tan_i.cross(axi_i)
+
+            node_tf_points.append(mat_i)
+
+            i += 1
+        
+        # Pick the right frond mesh
+        frond_target = None
+        target_diff = 0.0
+        for j, frond in enumerate(fronds[0]):
+            
+            diff = abs(d - frond[4].x)
+            if j == 0 or diff < target_diff:
+                frond_target = frond
+                target_diff = diff
+
+        # Create a matrix for stretching the target mesh, 
+        # used to better fit the length of the branch.
+        stretch_x = bpy.context.scene.gardener_stretch_factor_x
+        stretch_yz = bpy.context.scene.gardener_stretch_factor_yz
+        mat_stretch = Matrix()
+
+        if stretch_x > 0:
+            factor_x = ( ( (d / frond_target[4].x) - 1) * stretch_x) + 1
+            axis_x = Vector((factor_x, 0, 0))
+            axis_y = Vector((0, 1, 0))
+            axis_z = Vector((0, 0, 1))
+
+            if stretch_yz > 0:
+                factor_y = ( ( (d / frond_target[4].x) - 1) * stretch_yz) + 1
+                factor_z = ( ( (d / frond_target[4].x) - 1) * stretch_yz) + 1
+                axis_y = Vector((0, factor_y, 0))
+                axis_z = Vector((0, 0, factor_z))
+            
+            mat_stretch[0][0:3] = axis_x
+            mat_stretch[1][0:3] = axis_y
+            mat_stretch[2][0:3] = axis_z
+
+
+        for co in frond_target[0]:
+            co_tr = co.copy()
+
+            if stretch_x > 0:
+                co_tr = co_tr @ mat_stretch
+
+            border_dist = take_boundaries(node_dist, co.x)
+            i_0 = node_dist.index(border_dist[0])
+            i_1 = node_dist.index(border_dist[1])
+            co_tr.x = co_tr.x - border_dist[0]
+
+            # Used to interpolate layer data between the previous and next node.
+            lerp_range = (border_dist[1] - border_dist[0])
+            lerp_val = (co.x - border_dist[0]) / lerp_range
+            lerp_val = max(0, min(1, lerp_val))
+            
+            
+            # Get the initial transform of the point we start from,
+            # as well as two tangents used to smooth the rotation of 
+            # our points.
+            
+            mat_0 = node_tf_points[i_0]
+            tan_origin = tan[i_0]
+            tan_0 = ((tan[i_0])).normalized()
+            tan_1 = ((tan[i_1])).normalized()
+            
+
+            # This ended up causing distortion, will patch in later once fixed
+            # if i_1 < len(tan) - 1:
+            #     tan_1 = ((tan[i_0] + tan[i_1])).normalized()
+            # if i_0 > 0:
+            #     tan_0 = ((tan[i_0] + tan[i_0 - 1])).normalized()
+            # tan_lerp = tan_0.lerp(tan_1, lerp_val)
+            
+            # rotation_mat = rotate_align(tan_origin, tan_lerp)
+            
+            # co_tr_xb = co_tr.x
+            # co_tr.x = 0
+            # co_tr =  rotation_mat @ co_tr
+            # co_tr.x += co_tr_xb
+            
+            co_tr = co_tr @ mat_0
+            co_tr = co_tr + pos[i_0]
+            verts_append(co_tr.copy())
+
+            if do_layers:
+                number = 1
+                n_0 = nodes[i_0]
+                n_1 = nodes[i_1]
+                v_thickness = bl_math.lerp(n_0.thickness, n_1.thickness, lerp_val)
+                v_age = bl_math.lerp(n_0.age, n_1.age, lerp_val)
+                v_weight = bl_math.lerp(n_0.weight, n_1.weight, lerp_val)
+                v_photosys = bl_math.lerp(n_0.photosynthesis, n_1.photosynthesis, lerp_val)
+                pitch_tan = tan_0.lerp(tan_1, lerp_val)
+                pitch = 1.0 - (vector_z.angle(pitch_tan, 0.0) / pi)
+
+                layers_shade_extend([self.shade] * number)
+                layers_thickness_extend([v_thickness] * number)
+                layers_age_extend([v_age / tree_age] * number)
+                layers_weight_extend([v_weight / base_weight] * number)
+                layers_power_extend([self.power] * number)
+                layers_health_extend([pow(v_photosys, 0.2)] * number)
+                if self.dead:
+                    layers_dead_extend([1.0] * number)
+                else:
+                    layers_dead_extend([0.0] * number)
+                layers_pitch_extend([pitch] * number)
+                layers_apical_extend([0.0] * number)
+                layers_upward_extend([0.0] * number)
+                layers_dead_twig_extend([0.0] * number)
+                layers_lateral_extend([0.0] * number)
+                layers_branch_index_extend([branch_index] * number)
+                layers_branch_index_parent_extend([branch_index_parent] * number)
+
+                # GARDENER - Extra layers
+                layers_frond_extend([1.0] * number)
+                layer_height_extend([0.0] * number)
+                layer_trunk_distance_extend([0.0] * number)
+                layer_branch_distance_extend([0.0] * number)
+
+
+        for face in frond_target[1]:
+            new_face = []
+            for i in face:
+                new_face.append(i + v)
+            faces_append(new_face)
+
+        for uv in frond_target[2]:
+            uvs_extend(uv)
+
+        # Copies the same system for data layers as simulation_items to keep things uniform.
+        # ...just in a clunkier way Q _ Q
+        i = 0
+        
+        for mat_id in frond_target[3]:
+            for id_list in frond_materials.values():
+                if i == mat_id:
+                    id_list.append(1.0)
+                else:
+                    id_list.append(0.0)
+                i += 1
+            i = 0
         
         # Populate data layers
-        v += results
+        v += len(frond_target[0])
         
-        if do_layers:
-            number = results
-            layers_shade_extend([self.shade] * number)
-            layers_thickness_extend([n.thickness] * number)
-            layers_age_extend([n.age / tree_age] * number)
-            layers_weight_extend([n.weight / base_weight] * number)
-            layers_power_extend([self.power] * number)
-            layers_health_extend([pow(n.photosynthesis, 0.2)] * number)
-            if self.dead:
-                layers_dead_extend([1.0] * number)
-            else:
-                layers_dead_extend([0.0] * number)
-            layers_pitch_extend([pitch] * number)
-            layers_apical_extend([0.0] * number)
-            layers_upward_extend([0.0] * number)
-            layers_dead_twig_extend([0.0] * number)
-            layers_lateral_extend([0.0] * number)
-            layers_branch_index_extend([branch_index] * number)
-            layers_branch_index_parent_extend([branch_index_parent] * number)
+        
+
+
 
 
     # If we're NOT using Grove Gardener...
@@ -770,7 +923,7 @@ def build_branches_mesh(self, lateral_on_apical,
                                             (0.5 * circle[i].x + 0.5, 0.5 * circle[i].y + 0.5),
                                             (0.5, 0.5)])
             
-            # Moved numbers here as Gardener needs these!
+            # GARDENER - Moved numbers here as Gardener needs these!
             if j == last_node_index:
                 number = cur_res + 1
             else:
@@ -797,6 +950,11 @@ def build_branches_mesh(self, lateral_on_apical,
                 layers_lateral_extend([0.0] * number)
                 layers_branch_index_extend([branch_index] * number)
                 layers_branch_index_parent_extend([branch_index_parent] * number)
+                # GARDENER - Additional layers
+                layers_frond_extend([0.0] * number)
+                layer_height_extend([0.0] * number)
+                layer_trunk_distance_extend([0.0] * number)
+                layer_branch_distance_extend([0.0] * number)
             
             # Material indexes for frond meshes are counted differently.
             if gardener_use_fronds:
@@ -874,6 +1032,11 @@ def build_branches_mesh(self, lateral_on_apical,
                 layers_pitch_extend([pitch] * number)
                 layers_branch_index_extend([branch_index] * number)
                 layers_branch_index_parent_extend([branch_index_parent] * number)
+                # Gardener-specific layers
+                layers_frond_extend([0.0] * number)
+                layer_height_extend([0.0] * number)
+                layer_trunk_distance_extend([0.0] * number)
+                layer_branch_distance_extend([0.0] * number)
             
 
             if gardener_use_fronds:
@@ -963,6 +1126,8 @@ def build_branches_mesh(self, lateral_on_apical,
                         
                         layers_branch_index_extend([branch_index] * number)
                         layers_branch_index_parent_extend([branch_index_parent] * number)
+                        # Gardener-specific layers
+                        layers_frond_extend([0.0] * number)
                     
                     if gardener_use_fronds:
                         for id_list in frond_materials.values():
@@ -976,8 +1141,10 @@ def build_branches_mesh(self, lateral_on_apical,
         if node.sub_branches:
             for sub_branch in node.sub_branches:
                 next_branch_index += 1
+
+                # If the branch is too short or if Grove Gardener has intervened here,
+                # we skip sub-branches.
                 if len(sub_branch.nodes) < 2 or gardener_intervention is True:
-                    # Don't build short branches.
                     continue
                 
                 if i == 0:

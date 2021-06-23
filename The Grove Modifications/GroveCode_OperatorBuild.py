@@ -1,14 +1,22 @@
+# coding=utf-8
 
 
-# INSTALLATION : Add this to the top of the Branch file (around line 27)
+# INSTALLATION : Add this to the top of the OperatorBuild file (around line 27)
 
+
+# GARDENER - Required imports
 from .GardenerBuild import load_frond_set, build_normal_reprojection
 
-# This function is a modified version of a definition inside the OperatorBuild file.
-#
-# INSTALLATION : Replace the original definition inside OperatorBuild with this 
-# and ensure the tabbing is correct.  This definition is located at around line 402.
 
+# -------------------------------------------------------
+
+# The function below is a modified version of build_branches_mesh, inside the OperatorBuild file.
+#
+# INSTALLATION : Replace the original build_branches_mesh definition inside OperatorBuild with 
+# this and ensure the indentation is correct.
+#
+# This function is located at line at around line 405 (depending on where you add the import
+# statement above)
 
 def build_branches_mesh(tree, properties, context):
     """
@@ -65,7 +73,12 @@ def build_branches_mesh(tree, properties, context):
                        'layer_dead_twig': [],
                        'layer_branch_index': [],
                        'layer_branch_index_parent': [],
+
+                       # GARDENER - Extra data sets.
                        'layer_frond': [],
+                       'layer_height': [],
+                       'layer_trunk_distance': [],
+                       'layer_branch_distance': [],
                        }
 
     tree.engulf_branches(None, None)
@@ -117,6 +130,9 @@ def build_branches_mesh(tree, properties, context):
     # GARDENER - Inserts property booleans to get our custom vertex layers to
     if gardener_use_fronds:
         properties.do_layer_frond = True
+        properties.do_layer_height = False
+        properties.do_layer_trunk_distance = False
+        properties.do_layer_branch_distance = False
 
     # Add vertex layers and material groups.
     print(t('build_layers_message'))
