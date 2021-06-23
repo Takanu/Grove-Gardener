@@ -379,6 +379,17 @@ def build_normal_reprojection(ob, scale_to_twig, hull_res, hull_expand):
     data_transfer.loop_mapping = 'NEAREST_POLYNOR'
     bpy.ops.object.modifier_apply({"object" : ob}, modifier=data_transfer.name)
 
+    # this process adds sharp edges to everything that isnt the fronds due to auto-smooth,
+    # we need to remove them.
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.mesh.select_all(action='DESELECT')
+    bpy.ops.object.vertex_group_set_active(group='layer_frond')
+    bpy.ops.object.vertex_group_select()
+    bpy.ops.mesh.select_all(action='INVERT')
+    bpy.ops.mesh.mark_sharp(clear=True)
+    bpy.ops.mesh.select_all(action='DESELECT')
+    bpy.ops.object.mode_set(mode='OBJECT')
+
     # delete the trash and run away
     bpy.data.objects.remove(ob_hull, do_unlink=True)
     bpy.context.scene.collection.children.unlink(collection)
