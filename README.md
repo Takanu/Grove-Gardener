@@ -19,13 +19,13 @@ The Grove is a one-time purchase however and you'll get all future updates for f
 # Features
 
 ### Replace Branches
-This tool adds a new twig type - frond.  Set a Frond Collection and Grove Gardener will automatically replace twigs that are lower than the thickness threshold you set with one of the fronds from that collection.  The replacements are picked by the length of your meshes in order to find the best fit.
+Grove Gardener adds a new twig type - frond.  Set a Frond Collection and Grove Gardener will automatically replace twigs that are lower than the thickness threshold you set with one of the fronds from that collection.  The replacements are picked by the length of your meshes in order to find the best fit.
 
 ### Simplify Edge Loops
-The Grove adds a lot of edge loops that trees don't always need and this small tool automatically removes some of them to reduce the polygon count.
+The Grove adds a lot of edge loops that quickly inflate the polygon count for little benefit and Grove Gardener will let you automatically remove edge loops that don't add to the overall shape of the tree.
 
 ### Normal Reprojection
-Using the available tree mesh data, some kind of tool that makes the process of creating an averaged normal mesh to project onto tree planes an easy process.
+Using the available tree mesh data, the normals of all fronds will automatically be smoothed to point outwards in the general volume of the tree for the best possible lighting and shading (you can view the modified normal data through MatCaps or when exported to a game engine).
 
 ### Extra Vertex Layers (WIP)
 Grove Gardener adds Tree Height, Distance to Trunk, Distance to Frond and Branch Index vertex sets for baking, ready to use for wind shaders.
@@ -36,6 +36,7 @@ Grove Gardener adds Tree Height, Distance to Trunk, Distance to Frond and Branch
 * Unity Template Shader
 * Particle Baking
 * Billboard Texturing
+* LOD Workflows
 
 
 ## Limitations
