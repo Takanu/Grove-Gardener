@@ -131,7 +131,7 @@ def build_branches_mesh(tree, properties, context):
     # GARDENER - Inserts property booleans to populate our custom vertex layers.
     properties.do_layer_frond = gardener_use_fronds
     properties.do_layer_height = bpy.context.scene.gardener_datalayer_height
-    #properties.do_layer_trunk_distance = bpy.context.scene.gardener_datalayer_trunktobranch
+    properties.do_layer_trunk_distance = False #bpy.context.scene.gardener_datalayer_trunktobranch
     properties.do_layer_branch_distance = bpy.context.scene.gardener_datalayer_branchtofrond
     properties.do_layer_branch_group = bpy.context.scene.gardener_datalayer_branchgroup
 
