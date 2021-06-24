@@ -125,7 +125,7 @@ class GARDENER_PT_DataLayers(bpy.types.Panel):
         row.prop(scene, "gardener_datalayer_height")
         row.prop(scene, "gardener_datalayer_trunktobranch")
         row.prop(scene, "gardener_datalayer_branchtofrond")
-        row.prop(scene, "gardener_datalayer_index")
+        row.prop(scene, "gardener_datalayer_branchgroup")
 
 
 
@@ -253,9 +253,9 @@ def register():
         default=False,
     )
 
-    bpy.types.Scene.gardener_datalayer_index = BoolProperty(
-        name="Index / Offset",
-        description="Adds an additional vertex group to bake a randomized index value of every branch and frond",
+    bpy.types.Scene.gardener_datalayer_branchgroup = BoolProperty(
+        name="Branch Group",
+        description="Adds an additional vertex group that indexes every group of branches from the trunk of the tree",
         default=False,
     )
     

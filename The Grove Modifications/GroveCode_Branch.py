@@ -21,8 +21,8 @@ from .GardenerBuild import take_boundaries
 def build_branches_mesh(self, lateral_on_apical,
                         profile_resolution, profile_resolution_reduction, twist, u_repeat, texture_aspect_ratio, scale_to_twig,
                         root_distribution, root_shape, root_scale, root_bump, base_weight,
-                        parent_previous_node, parent_node, parent_next_node, v, verts, faces, uvs, shape,
-                        layers, fronds, frond_materials, branch_index, branch_index_parent,
+                        parent_previous_node, parent_node, parent_next_node, v, verts, faces, uvs, shape, layers, fronds, frond_materials, 
+                        branch_index, branch_index_parent, branch_group,
                         origin, circles,
                         lateral_twig_age_limit, dead_twig_wither, branch_angle, branching, plagiotropism_buds, add_planar, 
                         wind_force, tree_age,
@@ -305,6 +305,7 @@ def build_branches_mesh(self, lateral_on_apical,
         layer_height_extend = layers['layer_height'].extend
         layer_trunk_distance_extend = layers['layer_trunk_distance'].extend
         layer_branch_distance_extend = layers['layer_branch_distance'].extend
+        layer_branch_group_extend = layers['layer_branch_group'].extend
 
         # Prevent division by zero when creating vertex groups.
         if base_weight == 0.0:
@@ -645,8 +646,10 @@ def build_branches_mesh(self, lateral_on_apical,
                 v_age = bl_math.lerp(n_0.age, n_1.age, lerp_val)
                 v_weight = bl_math.lerp(n_0.weight, n_1.weight, lerp_val)
                 v_photosys = bl_math.lerp(n_0.photosynthesis, n_1.photosynthesis, lerp_val)
+                v_height = bl_math.lerp(n_0.pos.z, n_1.pos.z, lerp_val)
                 pitch_tan = tan_0.lerp(tan_1, lerp_val)
                 pitch = 1.0 - (vector_z.angle(pitch_tan, 0.0) / pi)
+                length_fract = co.x / frond_target[4].x
 
                 layers_shade_extend([self.shade] * number)
                 layers_thickness_extend([v_thickness] * number)
@@ -668,9 +671,10 @@ def build_branches_mesh(self, lateral_on_apical,
 
                 # GARDENER - Extra layers
                 layers_frond_extend([1.0] * number)
-                layer_height_extend([0.0] * number)
+                layer_height_extend([v_height] * number)
                 layer_trunk_distance_extend([0.0] * number)
-                layer_branch_distance_extend([0.0] * number)
+                layer_branch_distance_extend([length_fract] * number)
+                layer_branch_group_extend([branch_group] * number)
 
 
         for face in frond_target[1]:
@@ -702,16 +706,15 @@ def build_branches_mesh(self, lateral_on_apical,
 
 
 
-
-    # If we're NOT using Grove Gardener...
+    # GARDENER - Standard branch build code.
     # Draw current node's profile and connect it to the previous profile with faces.
     else:
         for j, n in enumerate(nodes):
             aspect = texture_aspect_ratio * repeat
 
 
-            # TK NOTE - First attempt at reducing loop count by skipping out of nodes early.
-            # TODO: This breaks UVs, wind and recording and it isnt elegant in any way
+            # GARDENER - First attempt at reducing loop count by skipping out of nodes early.
+            # TODO: This breaks UVs, wind and recording and it isnt really elegant.
             if gardener_reduce_el == True:
 
                 if j > 1 and j != (len(nodes) - 1):
@@ -722,7 +725,10 @@ def build_branches_mesh(self, lateral_on_apical,
                         if len(n.sub_branches) == 0:
                             # Everytime we skip a loop, the threshold gets higher
                             gardener_cur_reduc_val += gardener_loop_inc
-                            continue        
+                            previous_y = current_y
+                            # if j != 0:
+                            #     current_y += aspect / circumference * abs((n.pos_last_year - nodes[j - 1].pos_last_year).length)
+                            # continue        
                     else:
                         last_loop_tan = tan[j]
                         gardener_cur_reduc_val = gardener_reduce_el_value
@@ -793,7 +799,7 @@ def build_branches_mesh(self, lateral_on_apical,
             # Use pre-calculated circles for a speed-up.
             circle = circles[cur_res]
 
-            # Gardener variable to keep faces indexed.
+            # GARDENER - Variable to keep faces indexed.
             face_number = 0
 
             if build_skeleton:
@@ -950,11 +956,13 @@ def build_branches_mesh(self, lateral_on_apical,
                 layers_lateral_extend([0.0] * number)
                 layers_branch_index_extend([branch_index] * number)
                 layers_branch_index_parent_extend([branch_index_parent] * number)
+
                 # GARDENER - Additional layers
                 layers_frond_extend([0.0] * number)
-                layer_height_extend([0.0] * number)
+                layer_height_extend([n.pos.z] * number)
                 layer_trunk_distance_extend([0.0] * number)
                 layer_branch_distance_extend([0.0] * number)
+                layer_branch_group_extend([branch_group] * number)
             
             # Material indexes for frond meshes are counted differently.
             if gardener_use_fronds:
@@ -1032,11 +1040,13 @@ def build_branches_mesh(self, lateral_on_apical,
                 layers_pitch_extend([pitch] * number)
                 layers_branch_index_extend([branch_index] * number)
                 layers_branch_index_parent_extend([branch_index_parent] * number)
+
                 # Gardener-specific layers
                 layers_frond_extend([0.0] * number)
-                layer_height_extend([0.0] * number)
+                layer_height_extend([last_node.pos.z] * number)
                 layer_trunk_distance_extend([0.0] * number)
                 layer_branch_distance_extend([0.0] * number)
+                layer_branch_group_extend([branch_group] * number)
             
 
             if gardener_use_fronds:
@@ -1126,9 +1136,14 @@ def build_branches_mesh(self, lateral_on_apical,
                         
                         layers_branch_index_extend([branch_index] * number)
                         layers_branch_index_parent_extend([branch_index_parent] * number)
-                        # Gardener-specific layers
+
+                        # GARDENER - Additional layers
                         layers_frond_extend([0.0] * number)
-                    
+                        layer_height_extend([n.pos.z] * number)
+                        layer_trunk_distance_extend([0.0] * number)
+                        layer_branch_distance_extend([0.0] * number)
+                        layer_branch_group_extend([branch_group] * number)
+            
                     if gardener_use_fronds:
                         for id_list in frond_materials.values():
                             id_list.extend([0.0])
@@ -1146,6 +1161,10 @@ def build_branches_mesh(self, lateral_on_apical,
                 # we skip sub-branches.
                 if len(sub_branch.nodes) < 2 or gardener_intervention is True:
                     continue
+
+                # If we're in the trunk, increment the index group.
+                if self.is_trunk:
+                    branch_group += 1
                 
                 if i == 0:
                     previous_node, current_node, next_node = None, self.nodes[0], self.nodes[1]
@@ -1176,7 +1195,7 @@ def build_branches_mesh(self, lateral_on_apical,
                     base_weight,
                     previous_node, current_node, next_node, v,
                     verts, faces, uvs, shape, layers, fronds, frond_materials, 
-                    next_branch_index, branch_index,
+                    next_branch_index, branch_index, branch_group,
                     origin, circles,
                     lateral_twig_age_limit, dead_twig_wither, branch_angle, branching, plagiotropism_buds, add_planar, 
                     wind_force, 

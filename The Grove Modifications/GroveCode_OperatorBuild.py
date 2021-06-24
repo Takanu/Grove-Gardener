@@ -79,6 +79,7 @@ def build_branches_mesh(tree, properties, context):
                        'layer_height': [],
                        'layer_trunk_distance': [],
                        'layer_branch_distance': [],
+                       'layer_branch_group': [],
                        }
 
     tree.engulf_branches(None, None)
@@ -91,7 +92,7 @@ def build_branches_mesh(tree, properties, context):
                              tree.nodes[0].weight,
                              None, None, None, 0,
                              vertices, faces, uvs, shape, simulation_data, frond_data, frond_materials, 
-                             0, 0,
+                             0, 0, 0,
                              tree.nodes[0].pos, pre_compute_circles(properties.profile_resolution),
                              properties.lateral_twig_age_limit, properties.dead_twig_wither,
                              properties.branch_angle, int(properties.branching),
@@ -127,12 +128,28 @@ def build_branches_mesh(tree, properties, context):
     ob = bpy.data.objects.new(str(properties.preset_name), me)
     me = ob.data  # Just to be sure. This could fix the unstable behavior.
 
-    # GARDENER - Inserts property booleans to get our custom vertex layers to
-    if gardener_use_fronds:
-        properties.do_layer_frond = True
-        properties.do_layer_height = False
-        properties.do_layer_trunk_distance = False
-        properties.do_layer_branch_distance = False
+    # GARDENER - Inserts property booleans to populate our custom vertex layers.
+    properties.do_layer_frond = gardener_use_fronds
+    properties.do_layer_height = bpy.context.scene.gardener_datalayer_height
+    #properties.do_layer_trunk_distance = bpy.context.scene.gardener_datalayer_trunktobranch
+    properties.do_layer_branch_distance = bpy.context.scene.gardener_datalayer_branchtofrond
+    properties.do_layer_branch_group = bpy.context.scene.gardener_datalayer_branchgroup
+
+    if properties.do_layer_height:
+        max_height = tree.find_highest_point(0.0)
+        height_array = array(simulation_data['layer_height'])
+        simulation_data['layer_height'] = height_array / max_height
+    
+    # if properties.do_layer_trunk_distance:
+    #     max_height = tree.find_highest_point(0.0)
+    #     height_array = array(simulation_data['layer_height'])
+    #     simulation_data['layer_height'] = height_array / max_height
+
+    if properties.do_layer_branch_group:
+        branch_array = array(simulation_data['layer_branch_group'])
+        branch_group_value = branch_array[len(branch_array) - 1]
+        print("BRANCH GROUP = ", branch_group_value)
+        simulation_data['layer_branch_group'] = branch_array / branch_group_value
 
     # Add vertex layers and material groups.
     print(t('build_layers_message'))
