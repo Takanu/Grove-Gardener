@@ -5,6 +5,7 @@
 
 
 # GARDENER - Required imports
+from numpy import array, arange, random
 from .GardenerBuild import load_frond_set, build_normal_reprojection
 
 
@@ -135,7 +136,11 @@ def build_branches_mesh(tree, properties, context):
     properties.do_layer_branch_distance = bpy.context.scene.gardener_datalayer_branchtofrond
     properties.do_layer_branch_group = bpy.context.scene.gardener_datalayer_branchgroup
 
-    if properties.do_layer_height:
+    # GARDENER - This needs an actual interface, right now though itll force include all
+    # gamedev-relevant vertex groups.
+    gardener_merge_layers = bpy.context.scene.gardener_merge_layers
+
+    if properties.do_layer_height or gardener_merge_layers:
         max_height = tree.find_highest_point(0.0)
         height_array = array(simulation_data['layer_height'])
         simulation_data['layer_height'] = height_array / max_height
@@ -145,11 +150,31 @@ def build_branches_mesh(tree, properties, context):
     #     height_array = array(simulation_data['layer_height'])
     #     simulation_data['layer_height'] = height_array / max_height
 
-    if properties.do_layer_branch_group:
+    if properties.do_layer_branch_group or gardener_merge_layers:
         branch_array = array(simulation_data['layer_branch_group'])
         branch_group_value = branch_array[len(branch_array) - 1]
-        print("BRANCH GROUP = ", branch_group_value)
+
+        # make an array with values counting up to the branch group value and SHUFFLE
+        randomizer = arange(branch_group_value + 1)
+        random.shuffle(randomizer)
+
+        # replace the numbers incrementally
+        i = 0
+        print(randomizer)
+        print(branch_array)
+        while i < branch_group_value:
+            branch_array[branch_array == i] = randomizer[i]
+            i += 1
+
         simulation_data['layer_branch_group'] = branch_array / branch_group_value
+    
+    # GARDENER - Merges all active Gardener data layers into a single color group.
+    if gardener_merge_layers:
+        r_layer= simulation_data['layer_height']
+        b_layer = simulation_data['layer_thickness']
+        g_layer = simulation_data['layer_branch_distance']
+        a_layer = simulation_data['layer_branch_group']
+        vertex_colors_layer_from_colors(ob, "Combined Layers", r_layer, b_layer, g_layer, a_layer)
 
     # Add vertex layers and material groups.
     print(t('build_layers_message'))

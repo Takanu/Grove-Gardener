@@ -1,17 +1,16 @@
 
 # This adds additional functions involved in replicating and transforming frond meshes.
 
-import bpy, bmesh, time
+import bpy
 from mathutils import Matrix, Vector, Quaternion
+from numpy import array, take, empty, vstack
 from bisect import bisect_left
-    
 
-# PLACEHOLDER: Loads the requested type of twig geometry for use in building.
 def load_frond_set(collection, scale_to_twig):
 
     """
     Loads a mesh-based object and returns it's individual components (minus normals).
-    TODO: Add length and width data so frond substitions can be smarter.
+    TODO: Add width data so frond substitions can be smarter.
     TODO: Make this a dictionary/tuple thing, otherwise data access will get bad fast.
     """
 
@@ -175,6 +174,12 @@ def rotate_align(v1, v2):
 
 
 def build_normal_reprojection(ob, scale_to_twig, hull_res, hull_expand):
+    """
+    Uses a mix of remeshing, scaling and Data Transfer operations to create
+    better face corner normals for fronds.
+    
+    TODO - Add the ability to keep the hull mesh after creation, so people can see exactly what the addon is trying to do.
+    """
 
     # i dont wan't to do this elsewhere, so just add the object to a fake
     # collection to consider it "registered"
@@ -251,3 +256,48 @@ def build_normal_reprojection(ob, scale_to_twig, hull_res, hull_expand):
     bpy.data.collections.remove(collection)
 
     bpy.ops.object.select_all(action='DESELECT') 
+
+def vertex_colors_layer_from_colors(ob, name, red, green, blue, alpha):
+    """
+    GARDENER - This adapts the Vertex Color code from The Grove to create a color layer where every color
+    channel has one set of data.
+
+    Original code Copyright (c) 2016 - 2021, Wybren van Keulen, The Grove.
+    -------------------------------------------------------------------------
+    Add a new named Vertex Colors layer to the given mesh object. Fill the layer with the given data, an array
+    of floats. The list indexing matches the mesh's vertex indexing.
+
+    Vertex colors can be used in Cycles materials with the Attribute node. They are very different from
+    Vertex Groups. Similar to UV's, each corner of each face has a separate value. A vertex with four attached
+    faces has 4 color values, one for each face.
+
+    Blender stores Vertex Colors as layers in the object data. A layer is a list of tuples representing a color.
+    The order of this list is defined by the object's mesh's loops list. Loops is a list of integers representing
+    vertex indices for each face for each vertex in the face.
+
+    This version is very different from all other attempts found on the internet. It was a puzzle to find
+    a way to solve it without for loops. The solution uses numpy and is about 4x as fast as for loops. """
+
+    vertex_colors = ob.data.vertex_colors.new(name=name)
+
+    if vertex_colors is None:
+        return False
+    
+    indices = empty([len(vertex_colors.data)], dtype=int)
+    ob.data.loops.foreach_get("vertex_index", indices)
+
+    indices = array(indices, dtype=int)
+    ob.data.loops.foreach_get("vertex_index", indices)
+    
+    # There is probably a nicer soultion here, but I could not find it.
+    rsort = take(red, indices)
+    gsort = take(green, indices)
+    bsort = take(blue, indices)
+    asort = take(alpha, indices)
+    rgba = vstack((rsort, gsort, bsort, asort)).T
+
+    rgba = rgba.flatten()
+    rgba = rgba.tolist()  # foreach_set is over twice as fast when using a regular list over a numpy array.
+    vertex_colors.data.foreach_set("color", rgba)
+
+    return True

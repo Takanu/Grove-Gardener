@@ -126,6 +126,8 @@ class GARDENER_PT_DataLayers(bpy.types.Panel):
         row.prop(scene, "gardener_datalayer_trunktobranch")
         row.prop(scene, "gardener_datalayer_branchtofrond")
         row.prop(scene, "gardener_datalayer_branchgroup")
+        row.separator()
+        row.prop(scene, "gardener_merge_layers")
 
 
 
@@ -259,6 +261,11 @@ def register():
         default=False,
     )
     
+    bpy.types.Scene.gardener_merge_layers = BoolProperty(
+        name="Merge to Vertex Colors",
+        description="Merges all selected Vertex Layers into a single Vertex Color layer called 'Combined Layers'.  This will also become the active Vertex Color layer",
+        default=False,
+    )
     
 
 def unregister():
