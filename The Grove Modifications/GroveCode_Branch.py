@@ -4,6 +4,8 @@
 # INSTALLATION : Add this to the top of the Branch file (around line 21)
 
 import bl_math
+from numpy import array, amax, arange, concatenate
+from numpy import delete as numpy_delete
 from .GardenerBuild import take_boundaries
 
 
@@ -22,7 +24,7 @@ def build_branches_mesh(self, lateral_on_apical,
                         profile_resolution, profile_resolution_reduction, twist, u_repeat, texture_aspect_ratio, scale_to_twig,
                         root_distribution, root_shape, root_scale, root_bump, base_weight,
                         parent_previous_node, parent_node, parent_next_node, v, verts, faces, uvs, shape, layers, fronds, frond_materials, 
-                        branch_index, branch_index_parent, branch_group,
+                        branch_index, branch_index_parent, branch_group, curr_trunk_distance,  trunk_distance_index, hierarchy,
                         origin, circles,
                         lateral_twig_age_limit, dead_twig_wither, branch_angle, branching, plagiotropism_buds, add_planar, 
                         wind_force, tree_age,
@@ -324,21 +326,33 @@ def build_branches_mesh(self, lateral_on_apical,
     # GARDENER - Set some values for easy access.
     gardener_reduce_el = bpy.context.scene.gardener_reduce_edgeloops
     gardener_reduce_el_value = bpy.context.scene.gardener_edgeloop_reduce_factor
-    thickness_intervention_value = bpy.context.scene.gardener_thickness_preserve
     gardener_use_fronds = bpy.context.scene.gardener_use_fronds
+    gardener_replace_type = bpy.context.scene.gardener_frond_replace_type
+    
 
     # GARDENER - Does Grove Gardener need to intervene?  DECIDE NOW.
+    thickness_intervention_value = bpy.context.scene.gardener_thickness_cutoff
+    hierarchy_intervention_value = bpy.context.scene.gardener_hierarchy_level
     gardener_intervention = False
-    if gardener_use_fronds is True:
-        if self.nodes[0].thickness < thickness_intervention_value:
-            gardener_intervention = True
 
+    if gardener_use_fronds is True:
+        if gardener_replace_type == 'Thickness': 
+            if self.nodes[0].thickness < thickness_intervention_value:
+                gardener_intervention = True
+        elif gardener_replace_type == 'Hierarchy':
+            if hierarchy >= hierarchy_intervention_value:
+                gardener_intervention = True
+        elif gardener_replace_type == 'HierarchyHybrid':
+            if hierarchy >= hierarchy_intervention_value:
+                if self.nodes[0].thickness < thickness_intervention_value:
+                    gardener_intervention = True
     
     # Calculate tangent and axis for each node.
     pos = []  # pos
     tan = []  # tangent
     axi = []  # axis
     dir = []  # direction (like tangent, but has length)
+    dist = [0.0] # distances (calculated using direction)
 
     # this is slightly modified to remove references to variables not
     # currently applicable.
@@ -461,6 +475,18 @@ def build_branches_mesh(self, lateral_on_apical,
         dir.append(direction)
         last_direction = direction
 
+        # GARDENER - This didn't work T _ T
+        # if j != 0:
+        #     dist.append(dist[-1] + direction.length)
+    
+    # Distance calculation
+    i = 0
+    d = 0.0
+    while i < (len(nodes) - 1):
+            p_diff = pos[i + 1] - pos[i]
+            d += p_diff.length
+            dist.append(d)
+            i += 1
 
     # Axis calculations
     for j, n in enumerate(nodes):
@@ -529,18 +555,7 @@ def build_branches_mesh(self, lateral_on_apical,
         j = len(nodes) - 1
         n = nodes[-1]
         radius = nodes[0].radius
-
-        # Sort branch nodes by distance.
-        i = 0
-        d = 0.0
-        node_dist = [0.0]
-        
-        while i < (len(nodes) - 1):
-            p_diff = pos[i + 1] - pos[i]
-            d += p_diff.length
-            node_dist.append(d)
-            i += 1
-        
+        branch_length = dist[-1]            
         # Build transform points
         i = 0
         node_tf_points = []
@@ -565,7 +580,7 @@ def build_branches_mesh(self, lateral_on_apical,
         target_diff = 0.0
         for j, frond in enumerate(fronds[0]):
             
-            diff = abs(d - frond[4].x)
+            diff = abs(branch_length - frond[4].x)
             if j == 0 or diff < target_diff:
                 frond_target = frond
                 target_diff = diff
@@ -577,14 +592,14 @@ def build_branches_mesh(self, lateral_on_apical,
         mat_stretch = Matrix()
 
         if stretch_x > 0:
-            factor_x = ( ( (d / frond_target[4].x) - 1) * stretch_x) + 1
+            factor_x = ( ( (branch_length / frond_target[4].x) - 1) * stretch_x) + 1
             axis_x = Vector((factor_x, 0, 0))
             axis_y = Vector((0, 1, 0))
             axis_z = Vector((0, 0, 1))
 
             if stretch_yz > 0:
-                factor_y = ( ( (d / frond_target[4].x) - 1) * stretch_yz) + 1
-                factor_z = ( ( (d / frond_target[4].x) - 1) * stretch_yz) + 1
+                factor_y = ( ( (branch_length / frond_target[4].x) - 1) * stretch_yz) + 1
+                factor_z = ( ( (branch_length / frond_target[4].x) - 1) * stretch_yz) + 1
                 axis_y = Vector((0, factor_y, 0))
                 axis_z = Vector((0, 0, factor_z))
             
@@ -599,9 +614,9 @@ def build_branches_mesh(self, lateral_on_apical,
             if stretch_x > 0:
                 co_tr = co_tr @ mat_stretch
 
-            border_dist = take_boundaries(node_dist, co.x)
-            i_0 = node_dist.index(border_dist[0])
-            i_1 = node_dist.index(border_dist[1])
+            border_dist = take_boundaries(dist, co.x)
+            i_0 = dist.index(border_dist[0])
+            i_1 = dist.index(border_dist[1])
             co_tr.x = co_tr.x - border_dist[0]
 
             # Used to interpolate layer data between the previous and next node.
@@ -650,6 +665,7 @@ def build_branches_mesh(self, lateral_on_apical,
                 pitch_tan = tan_0.lerp(tan_1, lerp_val)
                 pitch = 1.0 - (vector_z.angle(pitch_tan, 0.0) / pi)
                 length_fract = co.x / frond_target[4].x
+                dist_to_trunk = curr_trunk_distance + dist[i_0] + (lerp_range * lerp_val)
 
                 layers_shade_extend([self.shade] * number)
                 layers_thickness_extend([v_thickness] * number)
@@ -672,7 +688,10 @@ def build_branches_mesh(self, lateral_on_apical,
                 # GARDENER - Extra layers
                 layers_frond_extend([1.0] * number)
                 layer_height_extend([v_height] * number)
-                layer_trunk_distance_extend([0.0] * number)
+                if self.is_trunk:
+                    layer_trunk_distance_extend([0] * number)
+                else:
+                    layer_trunk_distance_extend([dist_to_trunk] * number)
                 layer_branch_distance_extend([length_fract] * number)
                 layer_branch_group_extend([branch_group] * number)
 
@@ -702,33 +721,33 @@ def build_branches_mesh(self, lateral_on_apical,
         # Populate data layers
         v += len(frond_target[0])
         
-        
-
-
 
     # GARDENER - Standard branch build code.
     # Draw current node's profile and connect it to the previous profile with faces.
     else:
+
         for j, n in enumerate(nodes):
             aspect = texture_aspect_ratio * repeat
 
-
             # GARDENER - First attempt at reducing loop count by skipping out of nodes early.
-            # TODO: This breaks UVs, wind and recording and it isnt really elegant.
+            # TODO: This break wind and recording and it isnt really elegant.
             if gardener_reduce_el == True:
 
                 if j > 1 and j != (len(nodes) - 1):
                     
                     dot = last_loop_tan.dot(tan[j]) / (last_loop_tan.length * tan[j].length)
+                    print(dot)
+                    print(gardener_cur_reduc_val)
+                    print("*"*50)
                     
                     if dot > gardener_cur_reduc_val:
                         if len(n.sub_branches) == 0:
                             # Everytime we skip a loop, the threshold gets higher
                             gardener_cur_reduc_val += gardener_loop_inc
                             previous_y = current_y
-                            # if j != 0:
-                            #     current_y += aspect / circumference * abs((n.pos_last_year - nodes[j - 1].pos_last_year).length)
-                            # continue        
+                            if j != 0:
+                                current_y += aspect / circumference * abs((n.pos_last_year - nodes[j - 1].pos_last_year).length)
+                            continue        
                     else:
                         last_loop_tan = tan[j]
                         gardener_cur_reduc_val = gardener_reduce_el_value
@@ -960,7 +979,10 @@ def build_branches_mesh(self, lateral_on_apical,
                 # GARDENER - Additional layers
                 layers_frond_extend([0.0] * number)
                 layer_height_extend([n.pos.z] * number)
-                layer_trunk_distance_extend([0.0] * number)
+                if self.is_trunk:
+                    layer_trunk_distance_extend([0.0] * number)
+                else:
+                    layer_trunk_distance_extend([curr_trunk_distance + dist[j]] * number)
                 layer_branch_distance_extend([0.0] * number)
                 layer_branch_group_extend([branch_group] * number)
             
@@ -1044,7 +1066,10 @@ def build_branches_mesh(self, lateral_on_apical,
                 # Gardener-specific layers
                 layers_frond_extend([0.0] * number)
                 layer_height_extend([last_node.pos.z] * number)
-                layer_trunk_distance_extend([0.0] * number)
+                if self.is_trunk:
+                    layer_trunk_distance_extend([0.0] * number)
+                else:
+                    layer_trunk_distance_extend([curr_trunk_distance + dist[j]] * number)
                 layer_branch_distance_extend([0.0] * number)
                 layer_branch_group_extend([branch_group] * number)
             
@@ -1140,7 +1165,10 @@ def build_branches_mesh(self, lateral_on_apical,
                         # GARDENER - Additional layers
                         layers_frond_extend([0.0] * number)
                         layer_height_extend([n.pos.z] * number)
-                        layer_trunk_distance_extend([0.0] * number)
+                        if self.is_trunk:
+                            layer_trunk_distance_extend([0.0] * number)
+                        else:
+                            layer_trunk_distance_extend([curr_trunk_distance + dist[j]] * number)
                         layer_branch_distance_extend([0.0] * number)
                         layer_branch_group_extend([branch_group] * number)
             
@@ -1161,11 +1189,33 @@ def build_branches_mesh(self, lateral_on_apical,
                 # we skip sub-branches.
                 if len(sub_branch.nodes) < 2 or gardener_intervention is True:
                     continue
-
+                
+                next_trunk_distance = curr_trunk_distance + dist[i]
+                hierarchy += 1
+                
                 # If we're in the trunk, increment the index group.
+                # We also need to collapse the current set of distances to the trunk.
                 if self.is_trunk:
                     branch_group += 1
-                
+                    next_trunk_distance = 0
+                    hierarchy = 0
+
+                    # Slice the trunk distance data layer and divide it by the highest length.
+                    trunk_length = len(layers['layer_trunk_distance'])
+                    trunk_indices = arange(trunk_distance_index, trunk_length)
+                    trunk_array = array(layers['layer_trunk_distance'])
+
+                    trunk_sliced = layers['layer_trunk_distance'][trunk_distance_index:]
+                    trunk_remainder = numpy_delete(trunk_array, trunk_indices)
+
+                    slice_max = amax(trunk_sliced)
+                    trunk_sliced = trunk_sliced / slice_max
+                    final_list = concatenate((trunk_remainder, trunk_sliced))
+                    layers['layer_trunk_distance'] = final_list.tolist()
+
+                    trunk_distance_index = len(layers['layer_trunk_distance']) + 1
+                    
+                # GARDENER - The distance tallied depends on what the previous node sent will be.
                 if i == 0:
                     previous_node, current_node, next_node = None, self.nodes[0], self.nodes[1]
                 elif i == 1 and i != len(self.nodes) - 1:
@@ -1187,7 +1237,7 @@ def build_branches_mesh(self, lateral_on_apical,
                     # Sub branch of the last node.
                     previous_node, current_node, next_node = self.nodes[i - 1], self.nodes[i], None
 
-                v, next_branch_index = sub_branch.build_branches_mesh(
+                v, next_branch_index, hierarchy = sub_branch.build_branches_mesh(
                     lateral_on_apical,
                     profile_resolution, profile_resolution_reduction,
                     twist, u_repeat, texture_aspect_ratio, scale_to_twig,
@@ -1195,11 +1245,12 @@ def build_branches_mesh(self, lateral_on_apical,
                     base_weight,
                     previous_node, current_node, next_node, v,
                     verts, faces, uvs, shape, layers, fronds, frond_materials, 
-                    next_branch_index, branch_index, branch_group,
+                    next_branch_index, branch_index, branch_group, next_trunk_distance, trunk_distance_index, hierarchy,
                     origin, circles,
                     lateral_twig_age_limit, dead_twig_wither, branch_angle, branching, plagiotropism_buds, add_planar, 
                     wind_force, 
                     tree_age,
                     spring_shape=spring_shape, wind_shape=wind_shape)
-
-    return v, next_branch_index
+    
+    hierarchy -= 1
+    return v, next_branch_index, hierarchy
