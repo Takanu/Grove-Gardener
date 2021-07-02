@@ -328,24 +328,7 @@ def build_branches_mesh(self, lateral_on_apical,
     gardener_reduce_el_value = bpy.context.scene.gardener_edgeloop_reduce_factor
     gardener_use_fronds = bpy.context.scene.gardener_use_fronds
     gardener_replace_type = bpy.context.scene.gardener_frond_replace_type
-    
 
-    # GARDENER - Does Grove Gardener need to intervene?  DECIDE NOW.
-    thickness_intervention_value = bpy.context.scene.gardener_thickness_cutoff
-    hierarchy_intervention_value = bpy.context.scene.gardener_hierarchy_level
-    gardener_intervention = False
-
-    if gardener_use_fronds is True:
-        if gardener_replace_type == 'Thickness': 
-            if self.nodes[0].thickness < thickness_intervention_value:
-                gardener_intervention = True
-        elif gardener_replace_type == 'Hierarchy':
-            if hierarchy >= hierarchy_intervention_value:
-                gardener_intervention = True
-        elif gardener_replace_type == 'HierarchyHybrid':
-            if hierarchy >= hierarchy_intervention_value:
-                if self.nodes[0].thickness < thickness_intervention_value:
-                    gardener_intervention = True
     
     # Calculate tangent and axis for each node.
     pos = []  # pos
@@ -385,7 +368,7 @@ def build_branches_mesh(self, lateral_on_apical,
                 direction = nodes[j + 1].pos - n.pos
         
         # No smooth value or Gardener Build?  No problem.
-        elif smooth_value == 0 or gardener_intervention is False:
+        elif smooth_value == 0 or gardener_use_fronds is False:
             pos.append(n.pos)
 
             if j == last_node_index:
@@ -544,6 +527,31 @@ def build_branches_mesh(self, lateral_on_apical,
     # -----------------------------------------------------------------------
     # ////////////////////////////////////////////////////////////////////////
 
+    # GARDENER - Does Grove Gardener need to intervene?  DECIDE NOW.
+    thickness_cutoff = bpy.context.scene.gardener_thickness_cutoff
+    hierarchy_cutoff = bpy.context.scene.gardener_hierarchy_cutoff
+    length_cutoff = (bpy.context.scene.gardener_length_cutoff / scale_to_twig)
+    gardener_intervention = False
+
+    if gardener_use_fronds is True:
+        if gardener_replace_type == 'Thickness': 
+            if self.nodes[0].thickness < thickness_cutoff:
+                gardener_intervention = True
+        elif gardener_replace_type == 'Hierarchy':
+            if hierarchy >= hierarchy_cutoff:
+                gardener_intervention = True
+        elif gardener_replace_type == 'Length':
+            if dist[-1] < length_cutoff:
+                gardener_intervention = True
+        elif gardener_replace_type == 'HierarchyThickness':
+                if hierarchy >= hierarchy_cutoff:
+                    if self.nodes[0].thickness < thickness_cutoff:
+                        gardener_intervention = True
+        elif gardener_replace_type == 'HierarchyLength':
+                if hierarchy >= hierarchy_cutoff:
+                    if dist[-1] < length_cutoff:
+                        gardener_intervention = True
+
     # GARDENER - If it intervenes, its time to perform the "real" drawing code.
     gardener_loop_inc = (1 - gardener_reduce_el_value) / 10
     gardener_cur_reduc_val = gardener_reduce_el_value
@@ -650,7 +658,7 @@ def build_branches_mesh(self, lateral_on_apical,
             # co_tr.x += co_tr_xb
             
             co_tr = co_tr @ mat_0
-            co_tr = co_tr + pos[i_0]
+            co_tr = (co_tr + pos[i_0]) - origin
             verts_append(co_tr.copy())
 
             if do_layers:
@@ -736,17 +744,14 @@ def build_branches_mesh(self, lateral_on_apical,
                 if j > 1 and j != (len(nodes) - 1):
                     
                     dot = last_loop_tan.dot(tan[j]) / (last_loop_tan.length * tan[j].length)
-                    print(dot)
-                    print(gardener_cur_reduc_val)
-                    print("*"*50)
                     
                     if dot > gardener_cur_reduc_val:
                         if len(n.sub_branches) == 0:
                             # Everytime we skip a loop, the threshold gets higher
                             gardener_cur_reduc_val += gardener_loop_inc
-                            previous_y = current_y
-                            if j != 0:
-                                current_y += aspect / circumference * abs((n.pos_last_year - nodes[j - 1].pos_last_year).length)
+                            radius = n.radius
+                            circumference = 2 * pi * n.radius
+                            current_y += aspect / circumference * abs((n.pos - nodes[j - 1].pos).length)
                             continue        
                     else:
                         last_loop_tan = tan[j]
@@ -760,7 +765,6 @@ def build_branches_mesh(self, lateral_on_apical,
                 pos_offset = n.pos_last_year - origin
                 radius = n.radius_last_year
                 circumference = 2 * pi * radius
-                previous_y = current_y
                 if j != 0:
                     current_y += aspect / circumference * abs((n.pos_last_year - nodes[j - 1].pos_last_year).length)
                 
@@ -768,9 +772,10 @@ def build_branches_mesh(self, lateral_on_apical,
                 pos_offset = n.pos - origin
                 radius = n.radius
                 circumference = 2 * pi * n.radius
-                previous_y = current_y
                 if j != 0:
                     current_y += aspect / circumference * abs((n.pos - nodes[j - 1].pos).length)
+            
+            print("*"*50)
 
             # Scale root of the trunk.
             if self.is_trunk:
@@ -991,7 +996,7 @@ def build_branches_mesh(self, lateral_on_apical,
                 for id_list in frond_materials.values():
                     id_list.extend([0.0] * face_number)
 
-
+            previous_y = current_y
             prev_res = cur_res
     
     # TK NOTE - Apical and Lateral Twig distribution.

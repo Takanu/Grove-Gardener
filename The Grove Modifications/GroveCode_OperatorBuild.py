@@ -44,6 +44,7 @@ def build_branches_mesh(tree, properties, context):
     # Load frond data if we're replacing branches.
     # Also contains an indexed list of all materials used.
     gardener_use_fronds = bpy.context.scene.gardener_use_fronds
+    gardener_reproject_normals = bpy.context.scene.gardener_normal_use_reproject
     frond_data = []
     frond_materials = {}
 
@@ -280,7 +281,7 @@ def build_branches_mesh(tree, properties, context):
     me.polygons.foreach_set("material_index", material_indices)
 
     # GARDENER - Reproject normals using a duplicated hull of the tree.
-    if gardener_use_fronds:
+    if gardener_use_fronds and gardener_reproject_normals:
         hull_res = bpy.context.scene.gardener_normal_hull_res
         hull_expand = bpy.context.scene.gardener_normal_hull_size
         build_normal_reprojection(ob, properties.scale_to_twig, hull_res, hull_expand)

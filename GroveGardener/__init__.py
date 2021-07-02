@@ -72,10 +72,15 @@ class GARDENER_PT_FrondSettings(bpy.types.Panel):
         if replace_type == 'Thickness':
             row.prop(scene, "gardener_thickness_cutoff")
         elif replace_type == 'Hierarchy':
-            row.prop(scene, "gardener_hierarchy_level")
-        elif replace_type == 'HierarchyHybrid':
-            row.prop(scene, "gardener_hierarchy_level")
+            row.prop(scene, "gardener_hierarchy_cutoff")
+        elif replace_type == 'Length':
+            row.prop(scene, "gardener_length_cutoff")
+        elif replace_type == 'HierarchyThickness':
+            row.prop(scene, "gardener_hierarchy_cutoff")
             row.prop(scene, "gardener_thickness_cutoff")
+        elif replace_type == 'HierarchyLength':
+            row.prop(scene, "gardener_hierarchy_cutoff")
+            row.prop(scene, "gardener_length_cutoff")
 
         
         row.separator()
@@ -116,7 +121,7 @@ class GARDENER_PT_Normals(bpy.types.Panel):
         row.use_property_split = True
         row.use_property_decorate = False
 
-        
+        row.prop(scene, "gardener_normal_use_reproject")
         row.prop(scene, "gardener_normal_hull_res")
         row.prop(scene, "gardener_normal_hull_size")
     
@@ -158,17 +163,19 @@ def register():
 
     bpy.types.Scene.gardener_use_fronds = BoolProperty(
         name="Build with Grove Gardener",
-        description="If true, Grove Gardener will be used during the build process to replace branches and perform other tasks.",
+        description="If true, Grove Gardener will be used during the build process to replace branches and perform other tasks",
         default=False,
     )
 
     bpy.types.Scene.gardener_frond_replace_type = EnumProperty(
         name="Replace Method",
-        description="Determines how branches are replaced with fronds.",
+        description="Determines how branches are replaced with fronds",
         items=(
-        ('Hierarchy', 'Hierarchy', "This replaces branches depending on how far down they are located in the tree's branch structure."),
-        ('Thickness', 'Thickness', "This replaces branches depending on how thick they are relative to the rest of the tree."),
-        ('HierarchyHybrid', 'Hierarchy + Thickness', "This replaces branches based on hierarchy parameters first, then by the thickness of the tree.")
+        ('Hierarchy', 'Hierarchy', "This replaces branches depending on whether the number of layers the branch is down the tree structure is higher than the amount set"),
+        ('Thickness', 'Thickness', "This replaces a branch with a frond if the thickness of the branch is below the amount set"),
+        ('Length', 'Length', "This replaces a branch with a frond if the length of the branch is lower than the amount set"),
+        ('HierarchyThickness', 'Hierarchy + Thickness', "This replaces branches based on hierarchy parameters first, then if that check succeeds the replacement will occur if the thickness of the tree is lower than the amount set"),
+        ('HierarchyLength', 'Hierarchy + Length', "This replaces branches based on hierarchy parameters first, then if that check succeeds the replacement will occur if the length parameter is lower than the amount set"),
         ),
     )
 
@@ -183,13 +190,29 @@ def register():
         subtype='FACTOR',
     )
 
-    bpy.types.Scene.gardener_hierarchy_level = IntProperty(
+    bpy.types.Scene.gardener_hierarchy_cutoff = IntProperty(
         name="Hierarchy Cutoff",
         description="Decides what branches should not be converted based on how far the branch is down in the tree's hierarchy.",
         default=2, 
         min=1, 
         soft_max=6, 
         subtype='FACTOR',
+    )
+
+    bpy.types.Scene.gardener_length_cutoff = FloatProperty(
+        name="Length Cutoff",
+        description="Decides the length that branches have to be smaller than in order to be replaced by a frond",
+        default=0.2, 
+        min=0.01, 
+        soft_max=1, 
+        precision=2, 
+        subtype='DISTANCE',
+    )
+
+    bpy.types.Scene.gardener_hierarchy_reverse = BoolProperty(
+        name="Reverse Hierarchy",
+        description="If true, the hierarchy cutoff is calculated from the ends of each branch rather than from the trunk.  For certain kinds of trees that feature a lot of asymmetry this is extremely useful",
+        default=False, 
     )
 
     bpy.types.Scene.gardener_frond_collection = PointerProperty(
@@ -230,8 +253,6 @@ def register():
         precision=2, 
         subtype='FACTOR',
     )
-    
-    
 
     bpy.types.Scene.gardener_reduce_edgeloops = BoolProperty(
         name="Reduce Edge Loops",
@@ -248,6 +269,12 @@ def register():
         step=100, 
         precision=2, 
         subtype='FACTOR',
+    )
+
+    bpy.types.Scene.gardener_normal_use_reproject = BoolProperty(
+        name="Reproject Normals",
+        description="If true, the normals of the fronds will be reprojected using a simplified hull that represents the tree's shape.  It is highly recommend to keep on, especially if the trees are being used in game engines",
+        default=True,
     )
 
     bpy.types.Scene.gardener_normal_hull_res = FloatProperty(
@@ -295,8 +322,8 @@ def register():
     )
     
     bpy.types.Scene.gardener_merge_layers = BoolProperty(
-        name="Merge to Vertex Colors",
-        description="Merges all selected Vertex Layers into a single Vertex Color layer called 'Combined Layers'.  This will also become the active Vertex Color layer",
+        name="Build Vertex Colors",
+        description="This will create a Vertex Color layer called 'Combined Layers' that will contain color channels for Height, Trunk to Branch, Branch to Frond and Branch Group in the RGBA slots respectively.  IF YOU WANT TO USE THESE LAYERS IN A GAME ENGINE YOU MUST TICK THIS! \o/",
         default=False,
     )
     
@@ -308,15 +335,18 @@ def unregister():
     del bpy.types.Scene.gardener_frond_replace_type
 
     del bpy.types.Scene.gardener_thickness_cutoff
+    del bpy.types.Scene.gardener_hierarchy_cutoff
+    del bpy.types.Scene.gardener_length_cutoff
+    del bpy.types.Scene.gardener_hierarchy_reverse
 
     del bpy.types.Scene.gardener_smooth_factor
     del bpy.types.Scene.gardener_stretch_factor_x
     del bpy.types.Scene.gardener_stretch_factor_yz
     
-
     del bpy.types.Scene.gardener_reduce_edgeloops
     del bpy.types.Scene.gardener_edgeloop_reduce_factor
 
+    del bpy.types.Scene.gardener_normal_use_reproject
     del bpy.types.Scene.gardener_normal_hull_res
     del bpy.types.Scene.gardener_normal_hull_size
 
