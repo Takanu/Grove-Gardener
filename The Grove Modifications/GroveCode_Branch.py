@@ -441,16 +441,24 @@ def build_branches_mesh(self, lateral_on_apical,
                 v_B = (v_1 @ trig_mat).xy
                 
                 # Get the angle between, and then solve for v_B's true length.
-                angle = v_A.angle(v_B)
-                len_B = v_A.length * cos(angle)
+                angle = v_A.angle(v_B, 0)
                 
-                # Turn v_1 into a unit vector and multiply by the length,
+                # If the angle is 0, we failed, revert to normal behaviours.
+                if angle == 0:
+                    direction = p_1 - p_0
+                    tangent = direction
+                    pos.append(pos[j] + direction)
+
+                # If the angle isn't 0, turn v_1 into a unit vector and multiply by the length,
                 # we're finally done!
-                d_unit = v_1.normalized()
-                max_direction = Vector((d_unit.x * len_B, d_unit.y * len_B, d_unit.z * len_B))
-                direction = current_direction.lerp(max_direction, lerp)
-                tangent = direction
-                pos.append(pos[j] + direction)
+                else:
+                    len_B = v_A.length * cos(angle)
+                    d_unit = v_1.normalized()
+                    max_direction = Vector((d_unit.x * len_B, d_unit.y * len_B, d_unit.z * len_B))
+                    direction = current_direction.lerp(max_direction, lerp)
+                    tangent = direction
+                    pos.append(pos[j] + direction)
+
 
         
         tangent.normalize()
